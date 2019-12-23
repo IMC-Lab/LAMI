@@ -1,6 +1,7 @@
 #!/usr/bin/Rscript
 library(dplyr)
 library(tidyr)
+library(stringr)
 
 args <- commandArgs(trailingOnly=T)
 if (length(args) != 2) {
@@ -63,5 +64,9 @@ df <- df[, c('id', 'condition', 'success', 'imagination', 'LR', 'vivid',
              'rating', 'confidence', 'self_credit_blame', 'other_credit_blame',
              'self_resp', 'other_resp', 'duration', 'gender', 'age', 'race',
              'hispanic', 'education')]
+
+## clean up the imagination column
+df$imagination <- str_replace_all(df$imagination,
+                                c("R"="Remember", "W"="WhatIf?", "C"="Cause"))
 
 write.csv(df, out_file, row.names=FALSE)
