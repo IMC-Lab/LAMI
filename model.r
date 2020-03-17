@@ -27,31 +27,24 @@ judgments <- judgments %>%
            imagination=factor(imagination, levels=c('Remember', 'WhatIf?', 'Cause')))
 
 
-data.rem <- judgments %>% subset(imagination=='Remember') %>%
-    mutate(model = ifelse(success == 'S',
-                          1/2 + confidence/2,       # a number in [0.5, 1.0]
-                          1/2 - confidence/2))      # a number in [0.0, 0.5]
-data.cf <- judgments %>% subset(imagination=='WhatIf?') %>%
-    mutate(model = ifelse(success == 'S',
-                          1/2 - confidence/2,      # a number in [0.5, 1.0]
-                          1/2 + confidence/2))     # a number in [0.0, 0.5]
-data.cause <- judgments %>% subset(imagination=='Cause') %>%
-    mutate(model = abs(data.rem$model - data.cf$model))
+data.rem <- judgments %>% subset(imagination=='Remember')
+data.cf <- judgments %>% subset(imagination=='WhatIf?')
+data.cause <- judgments %>% subset(imagination=='Cause')
 
 
-model.rem <- lm(rating ~ success * condition * confidence, data=data.rem)
+model.rem <- lm(rating ~ success * condition * vivid, data=data.rem)
 data.rem$model <- predict(model.rem)
 summary(model.rem)
 png('plots/model/remember.png', width=750, height=750)
-plot(ggpredict(model.rem, terms=c('confidence', 'condition', 'success')))
+plot(ggpredict(model.rem, terms=c('vivid', 'condition', 'success')))
 dev.off()
 
 
-model.cf <- lm(rating ~ success * condition * confidence, data=data.cf)
+model.cf <- lm(rating ~ success * condition * vivid, data=data.cf)
 data.cf$model <- predict(model.cf)
 summary(model.cf)
 png('plots/model/whatif.png', width=750, height=750)
-plot(ggpredict(model.cf, terms=c('confidence', 'condition', 'success')))
+plot(ggpredict(model.cf, terms=c('vivid', 'condition', 'success')))
 dev.off()
 
 data.cause$rem <- data.rem$model
