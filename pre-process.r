@@ -39,7 +39,7 @@ colnames(data_wide) <- gsub('_1$', '', colnames(data_wide))
 df <- data_wide %>%
     pivot_longer(SR_LR:MC_other_resp,
                  names_pattern='(.)(.)_(.*)',
-                 names_to=c('success', 'imagination', 'measure'),
+                 names_to=c('outcome', 'imagination', 'measure'),
                  values_to='response') %>%
 
     # group ratings into a single column
@@ -60,13 +60,16 @@ df <- data_wide %>%
     pivot_wider(names_from=measure, values_from=response)
 
 ## reorder column names
-df <- df[, c('id', 'condition', 'success', 'imagination', 'LR', 'vivid',
+df <- df[, c('id', 'condition', 'outcome', 'imagination', 'LR', 'vivid',
              'rating', 'confidence', 'self_credit_blame', 'other_credit_blame',
              'self_resp', 'other_resp', 'duration', 'gender', 'age', 'race',
-             'hispanic', 'education')]
-
-## clean up the imagination column
-df$imagination <- str_replace_all(df$imagination,
-                                c("R"="Remember", "W"="WhatIf?", "C"="Cause"))
+             'hispanic', 'education')] %>%
+    
+    ## clean up the imagination column
+    mutate(imagination=str_replace_all(imagination,
+                                       c("R"="outcome", "W"="counterfactual",
+                                         "C"="causal")),
+           condition=word(condition, 2)) %>%
+    rename(vividness=vivid)
 
 write.csv(df, out_file, row.names=FALSE)
