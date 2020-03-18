@@ -106,54 +106,35 @@ ggsave(file="plots/vividness.png",g)
 Table2 <- sjPlot::tab_model(model.vividness, show.se = F, digits = 3)
 Table2
 
-#Event judgments
-## Rating analysis ball
-model.ratings <- lmer(rating ~ outcome * imagination * condition +
-                           vividness + (1|id),
-                       data=judgments)
-summary(model.ratings)
-anova(model.ratings)
-
-emmeans.ratings <- emmeans(model.ratings, ~ outcome * imagination * condition)
-emmeans.ratings
-emmeans(model.ratings, pairwise ~ outcome, by='imagination')
 
 
-plot1 <- emmeans.ratings %>% as.data.frame %>%
-    subset(condition == 'ball') %>%
-    ggplot(aes(x=imagination, y=emmean, group=outcome)) +
+data.outcome <- judgments %>% subset(imagination=='outcome')
+data.cf <- judgments %>% subset(imagination=='counterfactual')
+data.causal <- judgments %>% subset(imagination=='causal')
+
+model.outcome <- lmer(rating ~ outcome * condition * vividness + (1|id),
+                      data=data.outcome)
+summary(model.outcome)
+anova(model.outcome)
+emmeans.outcome <- emmeans(model.outcome, ~ outcome * condition * vividness, at=list(vividness=seq(0, 1, 0.01)))
+emtrends(model.outcome, pairwise ~ outcome, var='vividness')
+
+plot1 <- emmeans.outcome %>%
+    as.data.frame %>% subset(condition == 'ball') %>%
+    ggplot(aes(x=vividness, y=emmean, group=outcome, fill=outcome)) +
     ylab("Judgments") + ylim(0, 1) +
     theme_classic(base_size = 10, base_family = "Arial") +
-    geom_violin(aes(y=rating, fill=outcome,
-                    group=interaction(imagination, outcome)),
-                width=1, adjust=1.5, position=position_dodge(0.66),
-                data=subset(judgments, condition=='ball')) +
-    geom_point(size=3, position=position_dodge(0.66)) +
-    geom_errorbar(aes(ymin=lower.CL, ymax=upper.CL),
-                  size=0.75, width=0.3, position=position_dodge(0.66)) +
-    scale_x_discrete(name=NULL,
-                     labels=c('Outcome Assessment', 'Counterfactual Thinking',
-                              'Causal Reasoning')) +
+    geom_line(size=1.5) +
+    geom_ribbon(aes(ymin=lower.CL, ymax=upper.CL), alpha=0.3) +
     scale_color_discrete(name='Outcome', labels=c('Miss', 'Score'))
-plot1
-
-plot2 <- emmeans.ratings %>% as.data.frame %>%
-    subset(condition == 'goalie') %>%
-    ggplot(aes(x=imagination, y=emmean, group=outcome)) +
+plot2 <- emmeans.outcome %>%
+    as.data.frame %>% subset(condition == 'ball') %>%
+    ggplot(aes(x=vividness, y=emmean, group=outcome, fill=outcome)) +
     ylab("Judgments") + ylim(0, 1) +
     theme_classic(base_size = 10, base_family = "Arial") +
-    geom_violin(aes(y=rating, fill=outcome,
-                    group=interaction(imagination, outcome)),
-                width=1, adjust=1.5, position=position_dodge(0.66),
-                data=subset(judgments, condition=='goalie')) +
-    geom_point(size=3, position=position_dodge(0.66)) +
-    geom_errorbar(aes(ymin=lower.CL, ymax=upper.CL),
-                  size=0.75, width=0.3, position=position_dodge(0.66)) +
-    scale_x_discrete(name=NULL,
-                     labels=c('Outcome Assessment', 'Counterfactual Thinking',
-                              'Causal Reasoning')) +
+    geom_line(size=1.5) +
+    geom_ribbon(aes(ymin=lower.CL, ymax=upper.CL), alpha=0.3) +
     scale_color_discrete(name='Outcome', labels=c('Miss', 'Score'))
-plot2
 
 g <- arrangeGrob(grid.arrange(plot1, nrow=1,
                               top=textGrob("Retrospectively thinking about the ball",
@@ -162,7 +143,71 @@ g <- arrangeGrob(grid.arrange(plot1, nrow=1,
                               top=textGrob("Retrospectively thinking about the goalie",
                                            gp=gpar(fontface="bold"))),
                  nrow=2)
-ggsave(file="plots/ratings.png", g)
+ggsave(file="plots/ratings-outcome.png", g)
+
+
+
+model.cf <- lmer(rating ~ outcome * condition * vividness + (1|id),
+                 data=data.cf)
+summary(model.cf)
+anova(model.cf)
+emmeans.cf <- emmeans(model.cf, ~ outcome * condition * vividness, at=list(vividness=seq(0, 1, 0.01)))
+emtrends(model.cf, pairwise ~ outcome, var='vividness')
+
+plot1 <- emmeans.cf %>%
+    as.data.frame %>% subset(condition == 'ball') %>%
+    ggplot(aes(x=vividness, y=emmean, group=outcome, fill=outcome)) +
+    ylab("Judgments") + ylim(0, 1) +
+    theme_classic(base_size = 10, base_family = "Arial") +
+    geom_line(size=1.5) +
+    geom_ribbon(aes(ymin=lower.CL, ymax=upper.CL), alpha=0.3) +
+    scale_color_discrete(name='Outcome', labels=c('Miss', 'Score'))
+plot2 <- emmeans.cf %>%
+    as.data.frame %>% subset(condition == 'ball') %>%
+    ggplot(aes(x=vividness, y=emmean, group=outcome, fill=outcome)) +
+    ylab("Judgments") + ylim(0, 1) +
+    theme_classic(base_size = 10, base_family = "Arial") +
+    geom_line(size=1.5) +
+    geom_ribbon(aes(ymin=lower.CL, ymax=upper.CL), alpha=0.3) +
+    scale_color_discrete(name='Outcome', labels=c('Miss', 'Score'))
+
+g <- arrangeGrob(grid.arrange(plot1, nrow=1,
+                              top=textGrob("Retrospectively thinking about the ball",
+                                           gp=gpar(fontface="bold"))),
+                 grid.arrange(plot2, nrow=1,
+                              top=textGrob("Retrospectively thinking about the goalie",
+                                           gp=gpar(fontface="bold"))),
+                 nrow=2)
+ggsave(file="plots/ratings-cf.png", g)
+
+
+data.causal$outcome <- predict(model.outcome)
+data.causal$cf <- predict(model.cf)
+model.causal <- lmer(rating ~ outcome * cf + (1|id), data=data.causal)
+summary(model.causal)
+anova(model.causal)
+
+## leave the default plot for now
+model.causal %>%
+    ggpredict(terms=c('outcome', 'cf')) %>%
+    plot %>%
+    ggsave(file='plots/ratings-causal.png')
+
+judgments <- rbind(data.rem, data.cf, data.cause %>% select(-rem, -cf))
+
+png('plots/model/estimates.png', width=750, height=750)
+ggplot(judgments) + aes(x=condition, y=model, color=success) +
+    stat_summary(fun.data='mean_cl_boot', geom='pointrange') +
+    facet_grid(. ~ imagination) + theme_classic() + ylim(0, 1)
+dev.off()
+
+
+
+
+
+
+
+
 
 
 ########################################################################################
