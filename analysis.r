@@ -11,6 +11,7 @@ library(car)
 library(gridGraphics)
 library(emmeans)
 library(sjPlot)
+library(viridis)
 
 #set the directory
 setwd('/Users/kristinakrasich/Documents/ResearchProjects/Counterfactual/LAMI')
@@ -187,11 +188,22 @@ model.causal <- lmer(rating ~ outcome * cf + (1|id), data=data.causal)
 summary(model.causal)
 anova(model.causal)
 
-## leave the default plot for now
-model.causal %>%
-    ggpredict(terms=c('outcome', 'cf')) %>%
-    plot %>%
-    ggsave(file='plots/ratings-causal.png')
+emmeans.causal <- model.causal %>%
+    emmeans(~ outcome * cf,
+            at=list(cf=(0:100)/100,
+                    outcome=(0:100)/100)) %>%
+    as.data.frame()
+
+g <- emmeans.causal %>%
+    ggplot() +
+    aes(x=outcome, y=cf, fill=emmean) +
+    geom_tile() +
+    scale_fill_viridis(option="magma", name='Causal Rating') +
+    scale_x_continuous(expand=c(0,0), limits=c(0, 1)) +
+    scale_y_continuous(expand=c(0,0), limits=c(0, 1)) +
+    xlab('Outcome Rating') + ylab('Counterfactual Rating') +
+    theme_classic(base_size = 10, base_family = "Arial")
+ggsave(file="plots/ratings-causal.png",g)
 
 judgments <- rbind(data.rem, data.cf, data.cause %>% select(-rem, -cf))
 
