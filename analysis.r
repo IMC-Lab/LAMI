@@ -14,7 +14,7 @@ library(sjPlot)
 library(viridis)
 
 #set the directory
-setwd('/Users/kristinakrasich/Documents/ResearchProjects/Counterfactual/LAMI')
+setwd('/Users/kristinakrasich/Documents/ResearchProjects/Counterfactual/LAMI/LAMI')
 
 #read in the data
 judgments <- read.csv('data/LAMI_MTurk_processed.csv', header=TRUE)
@@ -47,13 +47,13 @@ table(judgments[,c('outcome', 'imagination', 'condition')])
 
 ## Vividness
 ## run the models: vividness
-model.vividness <- lmer(vividness ~ outcome * imagination * condition + (1 | id),
+model.vividness <- lmer(vividness ~ condition * imagination * outcome + (1 | id),
                         data=judgments)
 summary(model.vividness)
 anova(model.vividness)
 
 ## print out marginal means and contrasts over imagination
-emmeans.vividness <- emmeans(model.vividness, ~ outcome * imagination * condition)
+emmeans.vividness <- emmeans(model.vividness, ~ condition * outcome * imagination)
 emmeans.vividness
 emmeans(model.vividness, pairwise ~ imagination)
 
@@ -104,7 +104,7 @@ g <- arrangeGrob(grid.arrange(plot1, nrow=1,
 ggsave(file="plots/vividness.png",g)
 
 #Table of results
-Table2 <- sjPlot::tab_model(model.vividness, show.se = F, digits = 3)
+Table2 <- sjPlot::tab_model(model.vividness, show.se = F, digits = 3, file = "LAMI_Table2_edit.html")
 Table2
 
 
