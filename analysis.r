@@ -50,12 +50,13 @@ table(judgments[,c('outcome', 'imagination', 'condition')])
 model.vividness <- lmer(vividness ~ condition * imagination * outcome + (1 | id),
                         data=judgments)
 summary(model.vividness)
-anova(model.vividness)
+#anova(model.vividness)
 
 ## print out marginal means and contrasts over imagination
 emmeans.vividness <- emmeans(model.vividness, ~ condition * outcome * imagination)
 emmeans.vividness
-emmeans(model.vividness, pairwise ~ imagination)
+#emmeans(model.vividness, pairwise ~ imagination) 
+emmeans(model.vividness, pairwise ~ imagination | condition)$contrasts #to explore the interaction
 
 ## plot results
 plot1 <- emmeans.vividness %>% as.data.frame %>%
@@ -107,8 +108,8 @@ ggsave(file="plots/vividness.png",g)
 Table2 <- sjPlot::tab_model(model.vividness, show.se = F, digits = 3, file = "LAMI_Table2_edit.html")
 Table2
 
-
-
+#####
+#Predicting causal judgements from internal thoughts
 data.outcome <- judgments %>% subset(imagination=='outcome')
 data.cf <- judgments %>% subset(imagination=='counterfactual')
 data.causal <- judgments %>% subset(imagination=='causal')
@@ -116,7 +117,7 @@ data.causal <- judgments %>% subset(imagination=='causal')
 model.outcome <- lmer(rating ~ outcome * condition * vividness + (1|id),
                       data=data.outcome)
 summary(model.outcome)
-anova(model.outcome)
+#anova(model.outcome)
 emmeans.outcome <- emmeans(model.outcome, ~ outcome * condition * vividness, at=list(vividness=seq(0, 1, 0.01)))
 emtrends(model.outcome, pairwise ~ outcome, var='vividness')
 
@@ -151,7 +152,7 @@ ggsave(file="plots/ratings-outcome.png", g)
 model.cf <- lmer(rating ~ outcome * condition * vividness + (1|id),
                  data=data.cf)
 summary(model.cf)
-anova(model.cf)
+#anova(model.cf)
 emmeans.cf <- emmeans(model.cf, ~ outcome * condition * vividness, at=list(vividness=seq(0, 1, 0.01)))
 emtrends(model.cf, pairwise ~ outcome, var='vividness')
 
@@ -182,11 +183,15 @@ g <- arrangeGrob(grid.arrange(plot1, nrow=1,
 ggsave(file="plots/ratings-cf.png", g)
 
 
+#Table of models 1 and 2
+Table3 <- sjPlot::tab_model(model.outcome, model.cf, show.se = F, digits = 3, file = "LAMI_Table3.html")
+Table3
+
 data.causal$outcome <- predict(model.outcome)
 data.causal$cf <- predict(model.cf)
 model.causal <- lmer(rating ~ outcome * cf + (1|id), data=data.causal)
 summary(model.causal)
-anova(model.causal)
+#anova(model.causal)
 
 emmeans.causal <- model.causal %>%
     emmeans(~ outcome * cf,
@@ -198,16 +203,16 @@ g <- emmeans.causal %>%
     ggplot() +
     aes(x=outcome, y=cf, fill=emmean) +
     geom_tile() +
-    scale_fill_viridis(option="magma", name='Causal Rating') +
+    scale_fill_viridis(option="magma", name='Causal judgements') +
     scale_x_continuous(expand=c(0,0), limits=c(0, 1)) +
     scale_y_continuous(expand=c(0,0), limits=c(0, 1)) +
-    xlab('Outcome Rating') + ylab('Counterfactual Rating') +
-    theme_classic(base_size = 10, base_family = "Arial")
-ggsave(file="plots/ratings-causal.png",g)
+    xlab('Outcome model estimates') + ylab('Counterfactual model estimates') +
+    theme_classic(base_size = 10, base_family = "Arial") +
+ggsave(file="plots/ratings-causal.png",g, width=6, height=3)
 
 judgments <- rbind(data.rem, data.cf, data.cause %>% select(-rem, -cf))
 
-png('plots/model/estimates.png', width=750, height=750)
+png('plots/model/estimates_edit.png', width=750, height=750)
 ggplot(judgments) + aes(x=condition, y=model, color=success) +
     stat_summary(fun.data='mean_cl_boot', geom='pointrange') +
     facet_grid(. ~ imagination) + theme_classic() + ylim(0, 1)
