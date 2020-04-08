@@ -48,7 +48,7 @@ table(judgments[,c('outcome', 'imagination', 'condition')])
 ## Vividness
 ## run the models: vividness
 model.vividness <- lmer(vividness ~ condition * imagination * outcome + (1 | id),
-                        data=judgments)
+                         data=judgments)
 summary(model.vividness)
 #anova(model.vividness)
 
@@ -56,7 +56,7 @@ summary(model.vividness)
 emmeans.vividness <- emmeans(model.vividness, ~ condition * outcome * imagination)
 emmeans.vividness
 #emmeans(model.vividness, pairwise ~ imagination) 
-emmeans(model.vividness, pairwise ~ imagination | condition)$contrasts #to explore the interaction
+emmeans(model.vividness, pairwise ~ imagination | condition, adjust='none')$contrasts #to explore the interaction
 
 ## plot results
 plot1 <- emmeans.vividness %>% as.data.frame %>%
