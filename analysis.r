@@ -12,6 +12,8 @@ library(gridGraphics)
 library(emmeans)
 library(sjPlot)
 library(viridis)
+library(shiny)
+library(simr)
 
 #set the directory
 setwd('/Users/kristinakrasich/Documents/ResearchProjects/Counterfactual/LAMI/LAMI')
@@ -219,11 +221,10 @@ ggplot(judgments) + aes(x=condition, y=model, color=success) +
 dev.off()
 
 
-
-
-
-
-
+#Modeling Causal Judgements to look at vividness as a predictor
+model.cause <- lmer(rating ~ outcome * condition * vividness + (1|id), data=data.causal)
+summary(model.cause)
+Table4 <- sjPlot::tab_model(model.cause, show.se = F, digits = 2, file = "LAMI_Table4.html")
 
 
 
