@@ -38,7 +38,7 @@ judgments <- judgments %>%
          imagination=factor(imagination,
                             levels=c('outcome', 'counterfactual', 'causal')),
          condition=factor(condition,
-                            levels=c('ball', 'goalie')))
+                          levels=c('ball', 'goalie')))
 
 ## Participants
 ## Show the sample size
@@ -210,6 +210,7 @@ g <- emmeans.causal %>%
     scale_y_continuous(expand=c(0,0), limits=c(0, 1)) +
     xlab('Outcome model estimates') + ylab('Counterfactual model estimates') +
     theme_classic(base_size = 10, base_family = "Arial") +
+    coord_fixed()
 ggsave(file="plots/ratings-causal.png",g, width=6, height=3)
 
 judgments <- rbind(data.rem, data.cf, data.cause %>% select(-rem, -cf))
