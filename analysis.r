@@ -1,4 +1,3 @@
-######Kristina's below######
 library(dplyr)
 library(tidyr)
 library(lme4)
@@ -15,26 +14,18 @@ library(viridis)
 library(shiny)
 library(simr)
 
-#set the directory
-setwd('/Users/kristinakrasich/Documents/ResearchProjects/Counterfactual/LAMI/LAMI')
-
 #read in the data
-judgments <- read.csv('data/LAMI_MTurk_processed.csv', header=TRUE)
+judgments <- read.csv('data/LAMI_Full2_MTurk_processed.csv', header=TRUE)
 
 #double check data
 summary(judgments)
 
-## normalize the ratings from 1-7 or 1-5 to 0-1
-normalize <- function (x) (x-1) / 6
-normalize.vivid <- function (x) (x-1) / 4
+## normalize the ratings from 0-100 to 0-1
+normalize <- function (x) (x/100)
 judgments <- judgments %>%
   mutate(rating=normalize(rating),
          confidence=normalize(confidence),
-         vividness=normalize.vivid(vividness),
-         self_credit_blame=normalize(self_credit_blame),
-         other_credit_blame=normalize(other_credit_blame),
-         self_resp=normalize(self_resp),
-         other_resp=normalize(other_resp),
+         vividness=normalize(vividness),
          imagination=factor(imagination,
                             levels=c('outcome', 'counterfactual', 'causal')),
          condition=factor(condition,
@@ -44,10 +35,12 @@ judgments <- judgments %>%
 ## Show the sample size
 writeLines(sprintf('# of participants: %d', length(unique(judgments$id))))
 writeLines('Design: 2 (Outcome: score/miss) x 3 (imagination: Outcome assessment, Counterfactual thinking, Causal reasoning) x 2 (condition: ball/goalie)')
-table(judgments[,c('outcome', 'imagination', 'condition')])
+table(judgments[c('outcome', 'imagination', 'condition')])
 
 
 ## Vividness
+hist(judgments$vividness)
+
 ## run the models: vividness
 model.vividness <- lmer(vividness ~ condition * imagination * outcome + (1 | id),
                          data=judgments)
@@ -213,10 +206,10 @@ g <- emmeans.causal %>%
     coord_fixed()
 ggsave(file="plots/ratings-causal.png",g, width=6, height=3)
 
-judgments <- rbind(data.rem, data.cf, data.cause %>% select(-rem, -cf))
+#judgments <- rbind(data.rem, data.cf, data.cause %>% select(-rem, -cf))
 
 png('plots/model/estimates_edit.png', width=750, height=750)
-ggplot(judgments) + aes(x=condition, y=model, color=success) +
+ggplot(judgments) + aes(x=condition, y=model, color=outcome) +
     stat_summary(fun.data='mean_cl_boot', geom='pointrange') +
     facet_grid(. ~ imagination) + theme_classic() + ylim(0, 1)
 dev.off()
