@@ -3,13 +3,13 @@ library(dplyr)
 library(tidyr)
 library(stringr)
 
-in_file <- 'data/LAMI_Full2_MTurk_raw.csv'
-out_file <- 'data/LAMI_Full2_MTurk_processed.csv'
+in_file <- 'data/LAMI_Full_test.csv'
+out_file <- 'data/LAMI_Full_test_processed.csv'
 
 data_wide <- read.csv(in_file, header=TRUE, stringsAsFactors=FALSE)
 
 ## remove unneeded rows/cols
-data_wide <- data_wide[-c(1:2), -c(1:5, 7:8, 10:18, 219, 223)]
+data_wide <- data_wide[-c(1:2), -c(1:5, 7:8, 10:18)] #, 219, 223)]
 
 ## rename columns and filter subjects by attention checks
 data_wide <- data_wide %>%
@@ -36,28 +36,32 @@ conditions <- data.frame(loop=1:12,
                          imagination=rep(c('Remember', 'What If?', 'Cause'), 4))
 
 df <- data_wide %>%
-    pivot_longer(X1_LorRB1:X12_ConfidentB4,
+    pivot_longer(X1_LorRB1:X12_CheckB4,
                  names_pattern='X(\\d+)_(.+)B(\\d+)',
                  names_to=c('loop', 'measure', 'block'),
                  values_to='value') %>%
     mutate(loop=as.numeric(loop),
            block=as.numeric(block),
            display=ifelse(block < 3, 'up', 'down'),
-           measure=tolower(replace(replace(measure, measure=='Confident',
-                                           'Confidence'),
-                                   measure=='LorR', 'lr'))) %>%
+           measure=tolower(str_replace_all(measure, 'LorR', 'lr'))) %>%
     full_join(conditions, by='loop') %>%
     pivot_wider(names_from=measure, values_from=value) %>%
     rename(rating=question,
-           vividness=vivid) %>%
-    mutate(condition=word(condition, 2))
+           vividness=vivid,
+           gender_text=Gender_4_TEXT,
+           race_text=Race_7_TEXT,
+           VorV=VorV_5) %>%
+    mutate(condition=word(condition, 2),
+           lr_other=ifelse(outcome=='M', lr, ifelse(lr=='right', 'left', 'right')))
 
 ## reorder column names
 df <- df[, c('id', 'condition', 'block', 'display', 'loop', 'outcome', 'imagination',
-             'lr', 'vividness', 'rating', 'confidence',
-             'duration', 'gender', 'age', 'race', 'hispanic', 'education', 
-             'display', 'feedback', 'CheckQ1', 'CheckQ1Again',
+             'lr', 'vividness', 'rating', 'confidence', 'check', 'lr_other',
+             'duration', 'gender', 'gender_text', 'age', 'race', 'race_text',
+             'hispanic', 'education', 'VorV', 'feedback', 'CheckQ1', 'CheckQ1Again',
              'CheckQ2', 'CheckQ2Again', 'CheckQ3', 'CheckQ3Again')]
     
 
 write.csv(df, out_file, row.names=FALSE)
+
+

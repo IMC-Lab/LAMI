@@ -3,32 +3,27 @@ library(tidyr)
 library(lme4)
 library(lmerTest)
 library(ggplot2)
-library(ggeffects)
-library(grid)
-library(gridExtra)
 library(car)
-library(gridGraphics)
 library(emmeans)
 library(sjPlot)
 library(viridis)
-library(shiny)
-library(simr)
 library(patchwork)
 
 #read in the data
-judgments <- read.csv('data/LAMI_Full2_MTurk_processed.csv', header=TRUE)
+judgments <- read.csv('data/LAMI_Full_test_processed.csv', header=TRUE)
 summary(judgments)
 
 ## remove participants that fail the comprehension checks
 judgments <- judgments %>%
-    filter(CheckQ1=='Think about/visualize how ${e://Field/Condition} just moved.' |
-           CheckQ1Again=='Think about/visualize how ${e://Field/Condition} just moved.') %>%
-    filter(CheckQ2=='Think about/visualize what would have happened if ${e://Field/Condition} had moved in the other direction.' |
-           CheckQ2Again=='Think about/visualize what would have happened if ${e://Field/Condition} had moved in the other direction.') %>%
-    filter(CheckQ3=="Think about/visualize whether ${e://Field/Condition}'s movement caused the ball to score or not score." |
-           CheckQ3Again=="Think about/visualize whether ${e://Field/Condition}'s movement caused the ball to score or not score.") %>%
-    select(-CheckQ1, -CheckQ1Again, -CheckQ2, -CheckQ2Again, -CheckQ3, -CheckQ3Again)
-    
+    filter(CheckQ1=='Think about and visualize how ${e://Field/Condition} just moved.' |
+           CheckQ1Again=='Think about and visualize how ${e://Field/Condition} just moved.') %>%
+    filter(CheckQ2=='Think about and visualize what would have happened if ${e://Field/Condition} had moved in the other direction.' |
+           CheckQ2Again=='Think about and visualize what would have happened if ${e://Field/Condition} had moved in the other direction.') %>%
+    filter(CheckQ3=="Think about and visualize whether ${e://Field/Condition}'s movement caused the ball to score or not score." |
+           CheckQ3Again=="Think about and visualize whether ${e://Field/Condition}'s movement caused the ball to score or not score.") %>%
+    filter(check == lr_other) %>%
+    select(-CheckQ1, -CheckQ1Again, -CheckQ2, -CheckQ2Again,
+           -CheckQ3, -CheckQ3Again, -check, -lr_other)
 
 ## normalize the ratings from 0-100 to 0-1
 normalize <- function (x) (x/100)
@@ -48,6 +43,19 @@ writeLines('Design: 2 (Outcome: score/miss) x 3 (imagination: Outcome assessment
 table(judgments[c('outcome', 'imagination', 'condition')])
 
 
+## A summary plot of all ratings
+judgments %>%
+    ggplot(aes(x=confidence, y=rating, color=outcome)) +
+    geom_point(alpha=0.4) +
+    ##stat_density2d() +
+    stat_smooth(method='lm') +
+    facet_grid(imagination ~ condition * outcome) +
+    theme_classic()
+ggsave('plots/summary.png')
+
+
+
+
 ## Vividness
 hist(judgments$vividness, breaks=101)
 
@@ -55,12 +63,10 @@ hist(judgments$vividness, breaks=101)
 model.vividness <- lmer(vividness ~ condition*imagination*outcome + (1|id),
                         data=judgments)
 summary(model.vividness)
-#anova(model.vividness)
 
 ## print out marginal means and contrasts over imagination
 emmeans.vividness <- emmeans(model.vividness, ~ condition * outcome * imagination)
 emmeans.vividness
-#emmeans(model.vividness, pairwise ~ imagination) 
 emmeans(model.vividness, pairwise ~ imagination | condition, adjust='none')$contrasts #to explore the interaction
 
 ## plot results
@@ -155,7 +161,7 @@ ggsave(file="plots/ratings-outcome.png")
 model.whatif <- lmer(rating ~ outcome * condition * vividness + (1|id),
                      data=data.whatif)
 summary(model.whatif)
-#anova(model.whatif)
+
 emmeans.whatif <- emmeans(model.whatif, ~ outcome * condition * vividness,
                           at=list(vividness=seq(0, 1, 0.01)))
 emtrends(model.whatif, pairwise ~ outcome | condition, var='vividness')
@@ -186,7 +192,7 @@ plot2 <- emmeans.whatif %>%
     theme(plot.title = element_text(hjust=0.5, face="bold"))
 
 plot1 / plot2 + plot_layout(guides='collect')
-ggsave(file="plots/ratings-whatif.png", g)
+ggsave(file="plots/ratings-whatif.png")
 
 
 #Table of models 1 and 2
@@ -204,6 +210,16 @@ emmeans.cause <- model.cause %>%
     emmeans(~ condition*remember*whatif, at=list(whatif=(0:100)/100,
                                        remember=(0:100)/100)) %>%
     as.data.frame()
+
+ggplot(data.cause) +
+    aes(x=remember, y=whatif, color=rating) +
+    geom_point(alpha=0.5) +
+    coord_cartesian(xlim=c(0, 1), ylim=c(0,1)) +
+    theme_classic() +
+    scale_color_viridis(option="magma", name='Causal judgment') +
+    facet_grid(condition ~ .)
+ggsave('plots/ratings-causal-raw.png')
+    
 
 plot1 <- emmeans.cause %>%
     filter(condition=='ball') %>%
@@ -237,15 +253,13 @@ plot2 <- emmeans.cause %>%
 plot1 / plot2 + plot_layout(guides='collect')
 ggsave(file="plots/ratings-causal.png", width=6, height=6)
 
-#judgments <- rbind(data.rem, data.whatif, data.cause %>% select(-rem, -whatif))
-
 
 ggplot(judgments) + aes(x=condition, y=rating, color=outcome) +
     stat_summary(fun.data='mean_cl_boot', geom='pointrange') +
     facet_grid(. ~ imagination) + theme_classic() + ylim(0, 1)
+ggsave('plots/ratings.png')
 
-
-#Modeling Causal Judgements to look at vividness as a predictor
+#Modeling Causal Judgements to look at confidence as a predictor
 model.cause <- lmer(rating ~ outcome * condition * vividness + (1|id),
                     data=data.cause)
 summary(model.cause)
