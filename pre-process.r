@@ -3,8 +3,8 @@ library(dplyr)
 library(tidyr)
 library(stringr)
 
-in_file <- 'data/LAMI_Full_test.csv'
-out_file <- 'data/LAMI_Full_test_processed.csv'
+in_file <- 'data/LAMI_Prolific_raw.csv'
+out_file <- 'data/LAMI_Prolific_processed.csv'
 
 data_wide <- read.csv(in_file, header=TRUE, stringsAsFactors=FALSE)
 
@@ -22,8 +22,7 @@ data_wide <- data_wide %>%
            education=Education,
            age=Age,
            feedback=Feedback,
-           display=Display,
-           random_id=RandomID) %>%
+           display=Display) %>%
     subset(Catch == 'IM_74Ef0wh1bD6qdZb' & AttnCheck == 'Yes') %>%
     select(-Catch, -AttnCheck)
 
