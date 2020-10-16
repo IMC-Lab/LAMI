@@ -22,9 +22,7 @@ data_wide <- data_wide %>%
            education=Education,
            age=Age,
            feedback=Feedback,
-           display=Display) %>%
-    subset(Catch == 'IM_74Ef0wh1bD6qdZb' & AttnCheck == 'Yes') %>%
-    select(-Catch, -AttnCheck)
+           display=Display)
 
 # remove _1 from the end of slider question names
 colnames(data_wide) <- gsub('_1$', '', colnames(data_wide))
@@ -58,7 +56,7 @@ df <- df[, c('id', 'condition', 'block', 'display', 'loop', 'outcome', 'imaginat
              'lr', 'vividness', 'rating', 'confidence', 'check', 'lr_other',
              'duration', 'gender', 'gender_text', 'age', 'race', 'race_text',
              'hispanic', 'education', 'VorV', 'feedback', 'CheckQ1', 'CheckQ1Again',
-             'CheckQ2', 'CheckQ2Again', 'CheckQ3', 'CheckQ3Again')]
+             'CheckQ2', 'CheckQ2Again', 'CheckQ3', 'CheckQ3Again', 'Catch', 'AttnCheck')]
     
 
 write.csv(df, out_file, row.names=FALSE)
