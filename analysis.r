@@ -8,6 +8,7 @@ library(emmeans)
 library(sjPlot)
 library(viridis)
 library(patchwork)
+library(gridExtra)
 
 #read in the data
 judgments <- read.csv('data/LAMI_Prolific_processed.csv', header=TRUE)
@@ -21,7 +22,7 @@ judgments <- judgments %>%
            CheckQ2Again=='Think about and visualize what would have happened if ${e://Field/Condition} had moved in the other direction.') %>%
     filter(CheckQ3=="Think about and visualize whether ${e://Field/Condition}'s movement caused the ball to score or not score." |
            CheckQ3Again=="Think about and visualize whether ${e://Field/Condition}'s movement caused the ball to score or not score.") %>%
-    filter(check == lr_other & Catch == 'IM_74Ef0wh1bD6qdZb' & AttnCheck == 'Yes') %>%
+    filter(as.character(check) == as.character(lr_other) & Catch == 'IM_74Ef0wh1bD6qdZb' & AttnCheck == 'Yes') %>%
     select(-CheckQ1, -CheckQ1Again, -CheckQ2, -CheckQ2Again,
            -CheckQ3, -CheckQ3Again, -check, -lr_other, -Catch, -AttnCheck)
 
@@ -54,8 +55,6 @@ judgments %>%
     theme_classic()
 ggsave('plots/summary.png')
 
-
-
 judgments %>%
     ggplot(aes(x=vividness, y=confidence, color=rating)) +
     stat_smooth(method='lm', color='red') +
@@ -67,63 +66,63 @@ ggsave('plots/summary-vividness-confidence.png')
 
 
 ## Vividness
-hist(judgments$vividness, breaks=101)
+# hist(judgments$vividness, breaks=101)
 
 ## run the models: vividness
-model.vividness <- lmer(vividness ~ condition*imagination*outcome +
-                            (outcome*imagination|id),
-                        data=judgments)
-summary(model.vividness)
-
-## print out marginal means and contrasts over imagination
-emmeans.vividness <- emmeans(model.vividness, ~ condition * outcome * imagination)
-emmeans.vividness
-
-
-## plot results
-plot1 <- emmeans.vividness %>% as.data.frame %>%
-    subset(condition == 'ball') %>%
-    ggplot(aes(x=imagination, y=emmean, group=outcome)) +
-    ylab("Vividness Ratings") + coord_cartesian(ylim=c(0, 1)) +
-    theme_classic(base_size = 10, base_family = "Arial") +
-    geom_violin(aes(y=vividness, fill=outcome,
-                    group=interaction(imagination, outcome)),
-                width=0.75, adjust=1.75, position=position_dodge(0.75),
-                data=subset(judgments, condition=='ball')) +
-    geom_point(size=3, position=position_dodge(0.75)) +
-    geom_errorbar(aes(ymin=lower.CL, ymax=upper.CL),
-                  size=0.75, width=0.3, position=position_dodge(0.75)) +
-    scale_x_discrete(name=NULL,
-                     labels=c('Outcome Assessment', 'Counterfactual Thinking',
-                              'Causal Reasoning')) +
-    scale_fill_discrete(name='Outcome', labels=c('Miss', 'Score')) +
-    ggtitle('Retrospectively thinking about the ball') +
-    theme(plot.title = element_text(hjust=0.5, face="bold"))
-plot2 <- emmeans.vividness %>% as.data.frame %>%
-    subset(condition == 'goalie') %>%
-    ggplot(aes(x=imagination, y=emmean, group=outcome)) +
-    ylab("Vividness Ratings") + coord_cartesian(ylim=c(0, 1)) +
-    theme_classic(base_size = 10, base_family = "Arial") +
-    geom_violin(aes(y=vividness, fill=outcome,
-                    group=interaction(imagination, outcome)),
-                width=0.75, adjust=1.75, position=position_dodge(0.75),
-                data=subset(judgments, condition=='goalie')) +
-    geom_point(size=3, position=position_dodge(0.75)) +
-    geom_errorbar(aes(ymin=lower.CL, ymax=upper.CL),
-                  size=0.75, width=0.3, position=position_dodge(0.75)) +
-    scale_x_discrete(name=NULL,
-                     labels=c('Outcome Assessment', 'Counterfactual Thinking',
-                              'Causal Reasoning')) +
-    scale_fill_discrete(name='Outcome', labels=c('Miss', 'Score')) +
-    ggtitle('Retrospectively thinking about the goalie') +
-    theme(plot.title = element_text(hjust=0.5, face="bold"))
-
-plot1 / plot2 + plot_layout(guides='collect')
-ggsave(file="plots/vividness.png")
-
-#Table of results
-Table2 <- sjPlot::tab_model(model.vividness, show.se=F, digits=3, file="LAMI_Table2_edit.html")
-Table2
+# model.vividness <- lmer(vividness ~ condition*imagination*outcome +
+#                             (outcome*imagination|id),
+#                         data=judgments)
+# summary(model.vividness)
+# 
+# ## print out marginal means and contrasts over imagination
+# emmeans.vividness <- emmeans(model.vividness, ~ condition * outcome * imagination)
+# emmeans.vividness
+# 
+# 
+# ## plot results
+# plot1 <- emmeans.vividness %>% as.data.frame %>%
+#     subset(condition == 'ball') %>%
+#     ggplot(aes(x=imagination, y=emmean, group=outcome)) +
+#     ylab("Vividness Ratings") + coord_cartesian(ylim=c(0, 1)) +
+#     theme_classic(base_size = 10, base_family = "Arial") +
+#     geom_violin(aes(y=vividness, fill=outcome,
+#                     group=interaction(imagination, outcome)),
+#                 width=0.75, adjust=1.75, position=position_dodge(0.75),
+#                 data=subset(judgments, condition=='ball')) +
+#     geom_point(size=3, position=position_dodge(0.75)) +
+#     geom_errorbar(aes(ymin=lower.CL, ymax=upper.CL),
+#                   size=0.75, width=0.3, position=position_dodge(0.75)) +
+#     scale_x_discrete(name=NULL,
+#                      labels=c('Outcome Assessment', 'Counterfactual Thinking',
+#                               'Causal Reasoning')) +
+#     scale_fill_discrete(name='Outcome', labels=c('Miss', 'Score')) +
+#     ggtitle('Retrospectively thinking about the ball') +
+#     theme(plot.title = element_text(hjust=0.5, face="bold"))
+# plot2 <- emmeans.vividness %>% as.data.frame %>%
+#     subset(condition == 'goalie') %>%
+#     ggplot(aes(x=imagination, y=emmean, group=outcome)) +
+#     ylab("Vividness Ratings") + coord_cartesian(ylim=c(0, 1)) +
+#     theme_classic(base_size = 10, base_family = "Arial") +
+#     geom_violin(aes(y=vividness, fill=outcome,
+#                     group=interaction(imagination, outcome)),
+#                 width=0.75, adjust=1.75, position=position_dodge(0.75),
+#                 data=subset(judgments, condition=='goalie')) +
+#     geom_point(size=3, position=position_dodge(0.75)) +
+#     geom_errorbar(aes(ymin=lower.CL, ymax=upper.CL),
+#                   size=0.75, width=0.3, position=position_dodge(0.75)) +
+#     scale_x_discrete(name=NULL,
+#                      labels=c('Outcome Assessment', 'Counterfactual Thinking',
+#                               'Causal Reasoning')) +
+#     scale_fill_discrete(name='Outcome', labels=c('Miss', 'Score')) +
+#     ggtitle('Retrospectively thinking about the goalie') +
+#     theme(plot.title = element_text(hjust=0.5, face="bold"))
+# 
+# plot1 / plot2 + plot_layout(guides='collect')
+# ggsave(file="plots/vividness.png")
+# 
+# #Table of results
+# Table2 <- sjPlot::tab_model(model.vividness, show.se=F, digits=3, file="LAMI_Table2_edit.html")
+# Table2
 
 #####
 #Predicting causal judgements from internal thoughts
@@ -131,7 +130,7 @@ data.remember <- judgments %>% filter(imagination=='Remember')
 data.whatif <- judgments %>% filter(imagination=='What If?')
 data.cause <- judgments %>% filter(imagination=='Cause')
 
-model.remember <- lmer(rating ~ outcome * condition * vividness + (outcome|id),
+model.remember <- lmer(rating ~ condition *outcome* vividness + (outcome|id),
                        data=data.remember)
 summary(model.remember)
 
@@ -141,7 +140,7 @@ emtrends(model.remember, pairwise ~ outcome | condition, var='vividness')
 
 plot1 <- emmeans.remember %>%
     as.data.frame %>% subset(condition == 'ball') %>%
-    ggplot(aes(x=vividness, y=emmean, group=outcome, fill=outcome)) +
+    ggplot(aes(x=vividness, y=emmean, group=outcome, fill=outcome)) + xlab("Vividness") +
     ylab("Judgments") + coord_cartesian(ylim=c(0, 1)) +
     theme_classic(base_size = 10, base_family = "Arial") +
     geom_line(size=1.5) +
@@ -149,11 +148,11 @@ plot1 <- emmeans.remember %>%
     geom_point(aes(y=rating, color=outcome), show.legend=FALSE, alpha=0.5,
                data=filter(data.remember, condition=='ball')) +
     scale_fill_discrete(name='Outcome', labels=c('Miss', 'Score')) +
-    ggtitle('Retrospectively thinking about the ball') +
-    theme(plot.title = element_text(hjust=0.5, face="bold"))
+    ggtitle('Reflected on the ball') +
+    theme(plot.title = element_text(hjust=0.5))
 plot2 <- emmeans.remember %>%
     as.data.frame %>% subset(condition == 'goalie') %>%
-    ggplot(aes(x=vividness, y=emmean, group=outcome, fill=outcome)) +
+    ggplot(aes(x=vividness, y=emmean, group=outcome, fill=outcome)) + xlab("Vividness") +
     ylab("Judgments") + coord_cartesian(ylim=c(0, 1)) +
     theme_classic(base_size = 10, base_family = "Arial") +
     geom_line(size=1.5) +
@@ -161,8 +160,8 @@ plot2 <- emmeans.remember %>%
     geom_point(aes(y=rating, color=outcome), show.legend=FALSE, alpha=0.5,
                data=filter(data.remember, condition=='goalie')) +
     scale_fill_discrete(name='Outcome', labels=c('Miss', 'Score')) +
-    ggtitle('Retrospectively thinking about the goalie') +
-    theme(plot.title = element_text(hjust=0.5, face="bold"))
+    ggtitle('Reflected on the goalie') +
+    theme(plot.title = element_text(hjust=0.5))
 
 plot1 / plot2 + plot_layout(guides='collect')
 ggsave(file="plots/ratings-remember.png")
@@ -176,9 +175,12 @@ emmeans.whatif <- emmeans(model.whatif, ~ outcome * condition * vividness,
                           at=list(vividness=seq(0, 1, 0.01)))
 emtrends(model.whatif, pairwise ~ outcome | condition, var='vividness')
 
+#there was no sig interactions, so this is the comparison I used - kk
+emmeans(model.whatif, pairwise ~ outcome)
+
 plot1 <- emmeans.whatif %>%
     as.data.frame %>% subset(condition == 'ball') %>%
-    ggplot(aes(x=vividness, y=emmean, group=outcome, fill=outcome)) +
+    ggplot(aes(x=vividness, y=emmean, group=outcome, fill=outcome)) + xlab("Vividness") +
     ylab("Judgments") + coord_cartesian(ylim=c(0, 1)) +
     theme_classic(base_size = 10, base_family = "Arial") +
     geom_line(size=1.5) +
@@ -186,11 +188,11 @@ plot1 <- emmeans.whatif %>%
     geom_point(aes(y=rating, color=outcome), show.legend=FALSE, alpha=0.5,
                data=filter(data.whatif, condition=='ball')) +
     scale_fill_discrete(name='Outcome', labels=c('Miss', 'Score')) +
-    ggtitle('Retrospectively thinking about the ball') +
-    theme(plot.title = element_text(hjust=0.5, face="bold"))
+    ggtitle('Reflected on the ball') +
+    theme(plot.title = element_text(hjust=0.5))
 plot2 <- emmeans.whatif %>%
     as.data.frame %>% subset(condition == 'goalie') %>%
-    ggplot(aes(x=vividness, y=emmean, group=outcome, fill=outcome)) +
+    ggplot(aes(x=vividness, y=emmean, group=outcome, fill=outcome)) + xlab("Vividness") +
     ylab("Judgments") + coord_cartesian(ylim=c(0, 1)) +
     theme_classic(base_size = 10, base_family = "Arial") +
     geom_line(size=1.5) +
@@ -198,17 +200,16 @@ plot2 <- emmeans.whatif %>%
     geom_point(aes(y=rating, color=outcome), show.legend=FALSE, alpha=0.5,
                data=filter(data.whatif, condition=='goalie')) +
     scale_fill_discrete(name='Outcome', labels=c('Miss', 'Score')) +
-    ggtitle('Retrospectively thinking about the goalie') +
-    theme(plot.title = element_text(hjust=0.5, face="bold"))
+    ggtitle('Reflected on the goalie') +
+    theme(plot.title = element_text(hjust=0.5))
 
 plot1 / plot2 + plot_layout(guides='collect')
 ggsave(file="plots/ratings-whatif.png")
 
-
 #Table of models 1 and 2
-Table3 <- sjPlot::tab_model(model.remember, model.whatif,
-                            show.se=F, digits=3, file = "LAMI_Table3.html")
-Table3
+Table2 <- sjPlot::tab_model(model.remember, model.whatif,
+                            show.se=F, digits=3, file = "LAMI_Table2.html")
+Table2
 
 
 
@@ -239,33 +240,38 @@ plot1 <- emmeans.cause %>%
     ggplot(aes(x=remember, y=whatif, fill=emmean)) +
     geom_tile() +
     geom_point(fill='black', color='black',
-               size=0.1, data=filter(data.cause, condition=='ball')) +
-    scale_fill_viridis(option="magma", name='Causal judgment', limits=0:1) +
+               size=0.3, data=filter(data.cause, condition=='ball')) +
+    scale_fill_viridis(option="magma", name='Cause', limits=0:1) +
     scale_x_continuous(expand=c(0,0), limits=c(0, 1.1)) +
     scale_y_continuous(expand=c(0,0), limits=c(0, 1.1)) +
-    xlab('Outcome model estimates') + ylab('Counterfactual model estimates') +
+    xlab('Outcome model estimates') + ylab('Counterfactual estimates') +
     theme_classic(base_size = 10, base_family = "Arial") +
     coord_fixed() +
-    ggtitle('Retrospectively thinking about the ball') +
-    theme(plot.title = element_text(hjust=0.5, face="bold"))
+    ggtitle('Reflected on the ball') +
+    theme(plot.title = element_text(hjust=0.5))
 
 plot2 <- emmeans.cause %>%
     filter(condition=='goalie') %>%
     ggplot(aes(x=remember, y=whatif, fill=emmean)) +
     geom_tile() +
     geom_point(fill='black', color='black',
-               size=0.1, data=filter(data.cause, condition=='goalie')) +
-    scale_fill_viridis(option="magma", name='Causal judgment', limits=0:1) +
+               size=0.3, data=filter(data.cause, condition=='goalie')) +
+    scale_fill_viridis(option="magma", name='Cause', limits=0:1) +
     scale_x_continuous(expand=c(0,0), limits=c(0, 1.1)) +
     scale_y_continuous(expand=c(0,0), limits=c(0, 1.1)) +
-    xlab('Outcome model estimates') + ylab('Counterfactual model estimates') +
+    xlab('Outcome model estimates') + ylab('Counterfactual estimates') +
     theme_classic(base_size = 10, base_family = "Arial") +
     coord_fixed() +
-    ggtitle('Retrospectively thinking about the goalie') +
-    theme(plot.title = element_text(hjust=0.5, face="bold"))
+    ggtitle('Reflected on the goalie') +
+    theme(plot.title = element_text(hjust=0.5))
 
-plot1 / plot2
-ggsave(file="plots/ratings-causal.png", width=6, height=6)
+plot1 + plot2
+ggsave(file="plots/ratings-causal_kk.png")
+
+#Table of causal selection model
+Table3 <- sjPlot::tab_model(model.cause,
+                            show.se=F, digits=3, file = "LAMI_Table3.html")
+Table3
 
 
 ggplot(judgments) + aes(x=condition, y=rating, color=outcome) +
