@@ -8,7 +8,10 @@ library(emmeans)
 library(sjPlot)
 library(viridis)
 library(patchwork)
-library(gridExtra)
+
+library(brms)
+library(tidybayes)
+library(bayestestR)
 
 ## set sum contrasts as default
 options(contrasts=c('contr.sum', 'contr.poly'))
@@ -78,9 +81,22 @@ data.remember <- judgments %>% filter(imagination=='Remember')
 data.whatif <- judgments %>% filter(imagination=='What If?')
 data.cause <- judgments %>% filter(imagination=='Cause')
 
-model.remember <- lmer(rating ~ condition*outcome*scale(vividness) + (outcome|id),
-                       data=data.remember)
-summary(model.remember)
+
+
+
+model.remember <- brm(rating ~ condition*outcome*scale(vividness) +
+                          (outcome|id), data=data.remember,
+                      prior=c(set_prior('normal(0, 1)', class='b')),
+                      sample_prior='yes', save_pars=save_pars(all=TRUE),
+                      cores=4, file='remember')
+describe_posterior(model.remember, ci=.95, rope_ci=.95)
+
+## get BFs
+hypothesis(model.remember,
+           c('condition1 = 0', 'outcome1 = 0', 'scalevividness = 0',
+             'condition1:outcome1 = 0', 'condition1:scalevividness = 0',
+             'outcome1:scalevividness = 0',
+             'condition1:outcome1:scalevividness = 0'))
 
 emmeans.remember <- emmeans(model.remember, ~ outcome * condition * vividness,
                             at=list(vividness=seq(0, 1, length.out=10)))
@@ -93,7 +109,7 @@ plot1.remember <- emmeans.remember %>%
     ylab("Judgments") + coord_cartesian(ylim=c(0, 1)) +
     theme_classic(base_size = 10, base_family = "Arial") +
     geom_line(size=1.5) +
-    geom_ribbon(aes(ymin=lower.CL, ymax=upper.CL), alpha=0.3) +
+    geom_ribbon(aes(ymin=lower.HPD, ymax=upper.HPD), alpha=0.3) +
     geom_point(aes(y=rating, color=outcome), show.legend=FALSE, alpha=0.5,
                data=filter(data.remember, condition=='ball')) +
     scale_fill_discrete(name='Outcome', labels=c('Miss', 'Score')) +
@@ -106,7 +122,7 @@ plot2.remember <- emmeans.remember %>%
     ylab("Judgments") + coord_cartesian(ylim=c(0, 1)) +
     theme_classic(base_size = 10, base_family = "Arial") +
     geom_line(size=1.5) +
-    geom_ribbon(aes(ymin=lower.CL, ymax=upper.CL), alpha=0.3) +
+    geom_ribbon(aes(ymin=lower.HPD, ymax=upper.HPD), alpha=0.3) +
     geom_point(aes(y=rating, color=outcome), show.legend=FALSE, alpha=0.5,
                data=filter(data.remember, condition=='goalie')) +
     scale_fill_discrete(name='Outcome', labels=c('Miss', 'Score')) +
@@ -117,12 +133,25 @@ plot1.remember / plot2.remember + plot_layout(guides='collect')
 ggsave(file="plots/ratings-remember.png")
 
 
-model.whatif <- lmer(rating ~ outcome * condition * scale(vividness) + (outcome|id),
-                     data=data.whatif)
+
+model.whatif <- brm(rating ~ condition*outcome*scale(vividness) +
+                          (outcome|id), data=data.whatif,
+                      prior=c(set_prior('normal(0, 1)', class='b')),
+                      sample_prior='yes', save_pars=save_pars(all=TRUE),
+                    cores=4, file='whatif')
 summary(model.whatif)
+describe_posterior(model.whatif, ci=.95, rope_ci=.95)
+
+## get BFs
+hypothesis(model.whatif,
+           c('condition1 = 0', 'outcome1 = 0', 'scalevividness = 0',
+             'condition1:outcome1 = 0', 'condition1:scalevividness = 0',
+             'outcome1:scalevividness = 0',
+             'condition1:outcome1:scalevividness = 0'))
+
 
 emmeans.whatif <- emmeans(model.whatif, ~ outcome * condition * vividness,
-                          at=list(vividness=seq(0, 1, length.out=10)))
+                          at=list(vividness=seq(0, 1, length.out=100)))
 emtrends(model.whatif, pairwise ~ outcome | condition, var='vividness')
 
 #there was no sig interactions, so this is the comparison I used - kk
@@ -134,7 +163,7 @@ plot1.whatif <- emmeans.whatif %>%
     ylab("Judgments") + coord_cartesian(ylim=c(0, 1)) +
     theme_classic(base_size = 10, base_family = "Arial") +
     geom_line(size=1.5) +
-    geom_ribbon(aes(ymin=lower.CL, ymax=upper.CL), alpha=0.3) +
+    geom_ribbon(aes(ymin=lower.HPD, ymax=upper.HPD), alpha=0.3) +
     geom_point(aes(y=rating, color=outcome), show.legend=FALSE, alpha=0.5,
                data=filter(data.whatif, condition=='ball')) +
     scale_fill_discrete(name='Outcome', labels=c('Miss', 'Score')) +
@@ -147,7 +176,7 @@ plot2.whatif <- emmeans.whatif %>%
     ylab("Judgments") + coord_cartesian(ylim=c(0, 1)) +
     theme_classic(base_size = 10, base_family = "Arial") +
     geom_line(size=1.5) +
-    geom_ribbon(aes(ymin=lower.CL, ymax=upper.CL), alpha=0.3) +
+    geom_ribbon(aes(ymin=lower.HPD, ymax=upper.HPD), alpha=0.3) +
     geom_point(aes(y=rating, color=outcome), show.legend=FALSE, alpha=0.5,
                data=filter(data.whatif, condition=='goalie')) +
     scale_fill_discrete(name='Outcome', labels=c('Miss', 'Score')) +
@@ -172,7 +201,7 @@ rbind(emmeans.remember %>% as.data.frame %>% mutate(imagination='Remember'),
     xlab("Vividness") + ylab("Judgments") + coord_cartesian(ylim=c(0, 1)) +
     theme_classic(base_size = 10, base_family = "Arial") +
     geom_line(size=1.5) +
-    geom_ribbon(aes(ymin=lower.CL, ymax=upper.CL), alpha=0.3) +
+    geom_ribbon(aes(ymin=lower.HPD, ymax=upper.HPD), alpha=0.3) +
     geom_point(aes(y=rating, color=outcome), show.legend=FALSE, alpha=0.5,
                data=rbind(data.remember, data.whatif)) +
     facet_grid(condition ~ imagination,
@@ -184,16 +213,32 @@ rbind(emmeans.remember %>% as.data.frame %>% mutate(imagination='Remember'),
     theme(plot.title=element_text(hjust=0.5),
           strip.text=element_text(size=12),
           strip.background=element_blank())
+
 ggsave(file="plots/ratings-remember-whatif.png")
 
 
 
-data.cause$remember <- predict(model.remember, newdata=data.cause, re.form=NULL)
-data.cause$whatif <- predict(model.whatif, newdata=data.cause, re.form=NULL)
+data.cause$remember <- fitted(model.remember, newdata=data.cause, re.form=NULL)[,1]
+data.cause$whatif <- fitted(model.whatif, newdata=data.cause, re.form=NULL)[,1]
 
-model.cause <- lmer(rating ~ condition*scale(remember)*scale(whatif) + (1|id),
-                    data=data.cause)
+
+
+
+model.cause <- brm(rating ~ condition*scale(remember)*scale(whatif) +
+                       (1|id), data=data.cause,
+                   prior=c(set_prior('normal(0, 1)', class='b')),
+                   sample_prior='yes', save_pars=save_pars(all=TRUE),
+                   cores=4, file='cause')
 summary(model.cause)
+describe_posterior(model.cause, ci=.95, rope_ci=.95)
+
+## get BFs
+hypothesis(model.cause,
+           c('condition1 = 0', 'scaleremember = 0', 'scalewhatif = 0',
+             'condition1:scaleremember = 0', 'condition1:scalewhatif = 0',
+             'scaleremember:scalewhatif = 0',
+             'condition1:scaleremember:scalewhatif = 0'))
+
 
 emmeans.cause <- model.cause %>%
     emmeans(~ condition*remember*whatif, at=list(whatif=(0:100)/100,
