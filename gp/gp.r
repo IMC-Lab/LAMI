@@ -41,7 +41,7 @@ bin_space <- function(df, xmin=-600, xmax=600, xsize=10,
 }
 
 
-data.fix <- read.csv('data/KKTest1_BlankFixations_report.csv', header=TRUE) %>%
+data.fix <- read.csv('../data/test/KKTest1_BlankFixations_report.csv', header=TRUE) %>%
     mutate(CURRENT_FIX_X = CURRENT_FIX_X - 1920/2,
            CURRENT_FIX_Y = CURRENT_FIX_Y - 1080/2) %>%
     group_by(TRIAL_INDEX) %>%
@@ -73,52 +73,53 @@ ggplot(data.fix) +
 
 plot.data <- data.fix %>%
     group_by(SUB, TRIAL_INDEX) %>%
-    bin_space(xsize=100, ysize=100) %>%
+    bin_space(xsize=150, ysize=150) %>%
     group_by(SUB, bin_x, bin_y) %>%
     summarize(count=mean(count)) %>%
     ggplot() + ggtitle('Raw Data') +
     aes(x=bin_x, y=bin_y, fill=count) + xlab('X') + ylab('Y') +
     geom_raster() +
     facet_wrap(~ SUB) +
-    scale_fill_viridis(option='magma', name='Rate', limits=c(0, 6)) +
+    scale_fill_viridis(option='magma', name='Rate') +
     theme_classic() + theme(aspect.ratio=0.5)
 
 
 data.grid <- data.fix %>%
-    data_grid(xsize=100, ysize=100) %>%
+    data_grid(xsize=150, ysize=150) %>%
     select(-grid_idx)
 data.binned <- data.fix %>%
     group_by(SUB, TRIAL_INDEX) %>%
-    bin_space(xsize=100, ysize=100)
+    bin_space(xsize=150, ysize=150)
 
 
 
 data.stan <- list(D=2,  ## 2 dimensions (X, Y)
-                  ## data for fitting
                   N=nrow(data.binned),
-                  N_grid=nrow(data.grid),
-                  N_group=length(unique(data.binned$SUB)),
-                  idx_group=data.binned$SUB,
-                  idx_grid=data.binned$grid_idx,
+                  G=nrow(data.grid),
+                  P=length(unique(data.binned$SUB)),
+                  p=data.binned$SUB,
+                  g=data.binned$grid_idx,
                   x=data.grid,
                   y=data.binned$count)
 
 
 gp.fit <- readRDS('gp.rds')
 
-gp.fit <- stan(file='gp.stan', data=data.stan, chains=2)
+gp.fit <- stan(file='gp.stan', data=data.stan, chains=1)
 
 saveRDS(gp.fit, 'gp.rds')
 
 
 print(gp.fit, prob=c(0.025, 0.5, 0.975),
       pars=c('m_intercept', 'sd_intercept', 'intercept',
-             'md_rho', 'sd_rho', 'rho',
-             'md_alpha', 'sd_alpha', 'alpha',
-             'm_eta', 'sd_eta'))
+             'rho', 'rho_p', 'alpha', 'alpha_p'))
+plot(gp.fit, pars=c('m_intercept', 'sd_intercept', 'intercept',
+                    'rho', 'rho_p', 'alpha', 'alpha_p'))
+pairs(gp.fit, pars=c('m_intercept', 'sd_intercept', 'intercept',
+                     'rho', 'rho_p', 'alpha', 'alpha_p'))
 
 
-p <- tidy_draws(gp.fit) %>% select(-starts_with('eta'))
+p <- tidy_draws(gp.fit)
 
 pred <- p %>% select(.chain, .iteration, .draw,
                      starts_with('lambda'), starts_with('yhat')) %>%
@@ -135,11 +136,35 @@ pred <- p %>% select(.chain, .iteration, .draw,
 plot.pred <- pred %>%
     group_by(SUB, bin_x, bin_y) %>%
     mean_hdi(lambda) %>%
-    ggplot() + ggtitle('GP Fit') + 
+    ggplot() + ggtitle('GP Fit (by subject)') + 
     aes(x=bin_x, y=bin_y) + xlab('X') + ylab('Y') +
     geom_raster(aes(fill=exp(lambda))) +
     facet_wrap(~ SUB) +
-    scale_fill_viridis(option='magma', name='Rate', limits=c(0, 6)) +
+    scale_fill_viridis(option='magma', name='Rate') +
+    theme_classic() + theme(aspect.ratio=0.5)
+plot.data / plot.pred  + plot_layout(guides='collect')
+ggsave('plots/gp/gp_fit.png')
+
+
+group_pred <- p %>% select(.chain, .iteration, .draw, m_intercept, starts_with('f[')) %>%
+    pivot_longer('f[1]':paste0('f[', data.stan$G, ']'),
+                 names_to=c('parameter', '.row'),
+                 names_pattern='([[:alnum:]]+)\\[([[:digit:]]+)\\]') %>%
+    mutate(.row=as.integer(.row)) %>%
+    bind_cols(., data.grid[.$.row,]) %>%
+    pivot_wider(names_from='parameter') %>%
+    full_join(select(p, .chain, .iteration, .draw))
+
+group_pred %>%
+    group_by(bin_x, bin_y) %>%
+    mean_hdi(lambda=f) %>%
+    arrange(desc(lambda))
+    
+    ggplot() + ggtitle('GP Fit (group)') + 
+    aes(x=bin_x, y=bin_y) + xlab('X') + ylab('Y') +
+    geom_raster(aes(fill=exp(lambda))) +
+    scale_fill_viridis(option='magma', name='Rate') +
     theme_classic() + theme(aspect.ratio=0.5)
 
-plot.data / plot.pred + plot_layout(guides='collect')
+ggsave('plots/gp/gp_group_fit.png')
+
