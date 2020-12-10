@@ -53,15 +53,15 @@ data.fix <- read.csv('../data/test/KKTest1_BlankFixations_report.csv',
     mutate(PREV_FIX_X = lag(CURRENT_FIX_X),
            PREV_FIX_Y = lag(CURRENT_FIX_Y)) %>%
     ungroup()
-
+    
 ## generate fake subjects/conditions
 data.groups <- data.frame(TRIAL_INDEX=unique(data.fix$TRIAL_INDEX),
-                          PAR=as.factor(c(1, 1, 1, 2, 2,
-                                          1, 2, 1, 1, 2,
-                                          1, 2, 2, 1, 2,
-                                          2, 2, 1))) %>%
-    group_by(PAR) %>%
-    mutate(COND=as.factor(rep(1:3, 3)))
+                          PAR=as.factor(c(2, 1, 1, 2, 1, 2,
+                                          2, 1, 1, 1, 2, 2,
+                                          2, 1, 2, 1, 2, 1)),
+                          COND=as.factor(c(1, 1, 1, 3, 2, 1,
+                                           2, 1, 3, 2, 1, 2,
+                                           3, 3, 3, 2, 2, 3)))
 
 data.fix <- data.fix %>% mutate(PAR=data.groups$PAR[TRIAL_INDEX],
                                 COND=data.groups$COND[TRIAL_INDEX])
@@ -74,22 +74,22 @@ ggplot(data.fix) +
     theme_bw() + theme(aspect.ratio=0.5)
 
 ggplot(data.fix) +
-    aes(x=CURRENT_FIX_X, y=CURRENT_FIX_Y, color=as.factor(PAR)) +
+    aes(x=CURRENT_FIX_X, y=CURRENT_FIX_Y) +
     geom_point() +
     facet_wrap(~ TRIAL_INDEX) +
-    coord_cartesian(c(-600, 600), c(-300, 300)) +
+    coord_cartesian(c(-450, 500), c(-150, 300)) +
     theme_bw() + theme(aspect.ratio=0.5)
 
 
 
 data.grid <- data.fix %>%
-    data_grid(xmin=-450, xmax=550, xsize=50,
-              ymin=-200, ymax=300, ysize=50)
+    data_grid(xmin=-450, xmax=550, xsize=10,
+              ymin=-200, ymax=300, ysize=10)
 
 data.binned <- data.fix %>%
     group_by(PAR, COND, TRIAL_INDEX) %>%
-    bin_space(xmin=-450, xmax=550, xsize=50,
-              ymin=-200, ymax=300, ysize=50)
+    bin_space(xmin=-450, xmax=550, xsize=10,
+              ymin=-200, ymax=300, ysize=10)
 
 plot.data.par <- data.binned %>%
     group_by(COND, PAR, bin_x, bin_y) %>%
@@ -97,7 +97,7 @@ plot.data.par <- data.binned %>%
     ggplot(aes(x=bin_x, y=bin_y, fill=count)) +
     geom_raster() +
     facet_grid(COND ~ PAR, labeller=label_both) +
-    scale_fill_viridis(option='magma', name='Rate', limits=c(0, 4)) +
+    scale_fill_viridis(option='magma', name='Rate') +
     theme_classic() + theme(aspect.ratio=0.5)
 
 plot.data.group <- data.binned %>%
@@ -106,7 +106,7 @@ plot.data.group <- data.binned %>%
     ggplot(aes(x=bin_x, y=bin_y, fill=count)) +
     geom_raster() +
     facet_grid(COND ~ ., labeller=label_both) +
-    scale_fill_viridis(option='magma', name='Rate', limits=c(0, 2.5)) +
+    scale_fill_viridis(option='magma', name='Rate') +
     theme_classic() + theme(aspect.ratio=0.5)
 
 
