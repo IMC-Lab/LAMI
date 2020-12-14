@@ -1,15 +1,14 @@
 functions {
   /*
-   * compute a latent Gaussian process
+   * compute the covariance matrix for a latent Gaussian process
    * args:
    *   grid: the GP predictors
    *   alpha: the gp marginal SD parameter
-   *   rho: the length-scales for each dimension of x
-   *   eta: independent standard normal variates
+   *   rho: the length-scales for each dimension of grid
    * returns:
-   *   a vector of GP predictions at predictor locations x
+   *   a covariance matrix between locations on the grid
    */
-  vector gp_exp_quad_ARD(vector[] grid, real alpha, vector rho, vector eta) {
+  matrix cov_exp_quad_ARD(vector[] grid, real alpha, vector rho) {
     int N = size(grid);
     real delta = 1e-8;
     matrix[N, N] K;
@@ -23,7 +22,7 @@ functions {
       }
     }
     K[N, N] = alpha_sq + delta;
-    return cholesky_decompose(K) * eta;
+    return cholesky_decompose(K);
   }
 }
 
@@ -89,11 +88,17 @@ transformed parameters {
   vector[G] f_tilde[C, P];        // participant-level GPs (by participantXcondition)
 
   gamma = transpose(diag_pre_multiply(sigma, L) * z);
-  
-  for (i in 1:C) {
-    f[i] = gp_exp_quad_ARD(grid, alpha, rho, eta[i]);
-    for (j in 1:P) {
-      f_tilde[i, j] = gp_exp_quad_ARD(grid, alpha_tilde, rho_tilde, eta_tilde[i, j]);
+
+  {
+    // pre-compute GP covariance matrices
+    matrix[G, G] Lf = cov_exp_quad_ARD(grid, alpha, rho);
+    matrix[G, G] Lf_tilde = cov_exp_quad_ARD(grid, alpha_tilde, rho_tilde);
+
+    for (i in 1:C) {
+      f[i] = Lf * eta[i];
+      for (j in 1:P) {
+        f_tilde[i, j] = Lf_tilde * eta_tilde[i, j];
+      }
     }
   }
 }

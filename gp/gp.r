@@ -83,18 +83,19 @@ ggplot(data.fix) +
 
 
 data.grid <- data.fix %>%
-    data_grid(xmin=-450, xmax=550, xsize=10,
-              ymin=-200, ymax=300, ysize=10)
+    data_grid(xmin=-450, xmax=550, xsize=100,
+              ymin=-200, ymax=300, ysize=100)
 
 data.binned <- data.fix %>%
     group_by(PAR, COND, TRIAL_INDEX) %>%
-    bin_space(xmin=-450, xmax=550, xsize=10,
-              ymin=-200, ymax=300, ysize=10)
+    bin_space(xmin=-450, xmax=550, xsize=100,
+              ymin=-200, ymax=300, ysize=100)
 
 plot.data.par <- data.binned %>%
     group_by(COND, PAR, bin_x, bin_y) %>%
     summarize(count=mean(count)) %>%
     ggplot(aes(x=bin_x, y=bin_y, fill=count)) +
+    ggtitle('Raw Data (by subject)') + 
     geom_raster() +
     facet_grid(COND ~ PAR, labeller=label_both) +
     scale_fill_viridis(option='magma', name='Rate') +
@@ -102,8 +103,9 @@ plot.data.par <- data.binned %>%
 
 plot.data.group <- data.binned %>%
     group_by(COND, bin_x, bin_y) %>%
-    summarize(count=mean(count)) %>%
+    summarize(count=mean(count)) %>% 
     ggplot(aes(x=bin_x, y=bin_y, fill=count)) +
+    ggtitle('Raw Data (group-level)') +
     geom_raster() +
     facet_grid(COND ~ ., labeller=label_both) +
     scale_fill_viridis(option='magma', name='Rate') +
@@ -135,7 +137,7 @@ data.stan <- list(N=nrow(data.binned),
 
 gp.fit <- readRDS('gp.rds')
 
-gp.fit <- stan(file='gp.stan', data=data.stan, chains=2)
+gp.fit <- stan(file='gp.stan', data=data.stan, chains=1)
 
 saveRDS(gp.fit, 'gp.rds')
 
@@ -145,6 +147,7 @@ print(gp.fit, prob=c(0.025, 0.5, 0.975),
              'rho', 'rho_tilde', 'alpha', 'alpha_tilde'))
 
 plot(gp.fit, pars=c('a', 'beta', 'sigma', 'gamma'))
+
 pairs(gp.fit, pars=c('sigma', 'gamma'))
 
 ## extract model fits for each trial
@@ -165,10 +168,13 @@ plot.pred.par <- draws.trial %>%
     aes(x=bin_x, y=bin_y) + xlab('X') + ylab('Y') +
     geom_raster(aes(fill=exp(lambda))) +
     facet_grid(COND ~ PAR, labeller=label_both) +
-    scale_fill_viridis(option='magma', name='Rate', limits=c(0, 4)) +
+    scale_fill_viridis(option='magma', name='Rate') +
     theme_classic() + theme(aspect.ratio=0.5)
 
-(plot.data.par | plot.pred.par) + plot_layout(guides='collect')
+((plot.data.par | plot.pred.par) &
+ scale_fill_viridis(option='magma', name='Rate', limits=c(0, 4)) &
+ theme(legend.position='bottom')) +
+    plot_layout(guides='collect')
 ggsave('plots/gp_fit.png')
 
 
@@ -179,10 +185,13 @@ plot.pred.group <- draws.group %>%
     aes(x=bin_x, y=bin_y) + xlab('X') + ylab('Y') +
     facet_grid(COND ~ ., labeller=label_both) +
     geom_raster(aes(fill=exp(lambda))) +
-    scale_fill_viridis(option='magma', name='Rate') + ##, limits=c(0, 2.5)) +
+    scale_fill_viridis(option='magma', name='Rate') +
     theme_classic() + theme(aspect.ratio=0.5)
 
-(plot.data.group | plot.pred.group) + plot_layout(guides='collect')
+((plot.data.group | plot.pred.group) &
+ scale_fill_viridis(option='magma', name='Rate', limits=c(0, 4)) &
+ theme(legend.position='bottom')) +
+    plot_layout(guides='collect')
 ggsave('plots/gp_group_fit.png')
 
 
@@ -201,4 +210,9 @@ contr.group %>% median_hdci() %>%
     theme_classic() + theme(aspect.ratio=0.5)
     
 contr.group %>% median_hdci() %>%
-    filter(.upper < 0 | .lower > 0)
+    filter(.upper < 0 | .lower > 0) %>%
+    ggplot(aes(x=bin_x, y=bin_y, fill=lambda)) +
+    facet_grid(COND ~ .) +
+    geom_raster(aes(fill=lambda)) +
+    scale_fill_viridis(option='magma', name='Rate') +
+    theme_classic() + theme(aspect.ratio=0.5)
