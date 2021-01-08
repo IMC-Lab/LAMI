@@ -21,6 +21,12 @@ judgments <- read.csv('data/LAMI_Prolific_processed.csv',
                       header=TRUE, stringsAsFactors=FALSE)
 summary(judgments)
 
+## # of participants & trials pre-exclusion
+judgments %>%
+    group_by(condition) %>%
+    summarize(N=length(unique(id)))
+nrow(judgments)
+
 ## remove participants that fail the comprehension checks
 judgments <- judgments %>%
     filter(CheckQ1=='Think about and visualize how ${e://Field/Condition} just moved.' |
@@ -29,11 +35,26 @@ judgments <- judgments %>%
            CheckQ2Again=='Think about and visualize what would have happened if ${e://Field/Condition} had moved in the other direction.') %>%
     filter(CheckQ3=="Think about and visualize whether ${e://Field/Condition}'s movement caused the ball to score or not score." |
            CheckQ3Again=="Think about and visualize whether ${e://Field/Condition}'s movement caused the ball to score or not score.") %>%
-    filter(as.character(check) == as.character(lr_other) &
-           Catch == 'IM_74Ef0wh1bD6qdZb' &
+    filter(Catch == 'IM_74Ef0wh1bD6qdZb' &
            AttnCheck == 'Yes') %>%
     select(-CheckQ1, -CheckQ1Again, -CheckQ2, -CheckQ2Again,
-           -CheckQ3, -CheckQ3Again, -check, -lr_other, -Catch, -AttnCheck)
+           -CheckQ3, -CheckQ3Again, -Catch, -AttnCheck)
+
+## # of participants & trials pre-trial-exclusion
+judgments %>%
+    group_by(condition) %>%
+    summarize(N=length(unique(id)))
+nrow(judgments)
+
+judgments <- judgments %>%
+    filter(as.character(check) == as.character(lr_other)) %>%
+    select(-check, -lr_other)
+
+## # of participants & trials post-exclusion
+judgments %>%
+    group_by(condition) %>%
+    summarize(N=length(unique(id)))
+nrow(judgments)
 
 ## normalize the ratings from 0-100 to 0-1
 normalize <- function (x) (x/100)
@@ -51,7 +72,10 @@ judgments <- judgments %>%
 ## Show the sample size
 writeLines(sprintf('# of participants: %d', length(unique(judgments$id))))
 writeLines('Design: 2 (Outcome: score/miss) x 3 (imagination: Outcome assessment, Counterfactual thinking, Causal reasoning) x 2 (condition: ball/goalie)')
-table(judgments[c('outcome', 'imagination', 'condition')])
+judgments %>%
+    group_by(condition) %>%
+    summarize(N=length(unique(id)))
+nrow(judgments)
 
 
 ## A summary plot of all ratings
@@ -84,106 +108,73 @@ data.cause <- judgments %>% filter(imagination=='Cause')
 
 
 
-model.remember <- brm(rating ~ condition*outcome*scale(vividness) +
-                          (outcome|id), data=data.remember,
-                      prior=c(set_prior('normal(0, 1)', class='b')),
+model.remember <- brm(rating ~ condition*outcome + (outcome|id),
+                      data=data.remember,
+                      prior=c(set_prior(paste0('normal(0, ',
+                                               sd(data.remember$rating), ')'),
+                                        class='b')),
                       sample_prior='yes', save_pars=save_pars(all=TRUE),
                       cores=4, file='remember')
+
+summary(model.remember, prior=TRUE)
 describe_posterior(model.remember, ci=.95, rope_ci=.95)
 
 ## get BFs
-hypothesis(model.remember,
-           c('condition1 = 0', 'outcome1 = 0', 'scalevividness = 0',
-             'condition1:outcome1 = 0', 'condition1:scalevividness = 0',
-             'outcome1:scalevividness = 0',
-             'condition1:outcome1:scalevividness = 0'))
+hypothesis(model.remember, c('condition1 = 0', 'outcome1 = 0',
+                             'condition1:outcome1 = 0'))
 
-emmeans.remember <- emmeans(model.remember, ~ outcome * condition * vividness,
-                            at=list(vividness=seq(0, 1, length.out=10)))
-emtrends(model.remember, pairwise ~ outcome | condition, var='vividness')
+emmeans.remember <- emmeans(model.remember, ~ outcome * condition)
 
-plot1.remember <- emmeans.remember %>%
-    as.data.frame %>% subset(condition == 'ball') %>%
-    ggplot(aes(x=vividness, y=emmean, group=outcome, fill=outcome)) +
-    xlab("Vividness") +
+emmeans.remember %>%
+    as.data.frame %>% 
+    ggplot(aes(x=condition, y=emmean, ymin=lower.HPD, ymax=upper.HPD,
+               fill=outcome)) +
+    scale_x_discrete(name='Focused Object', labels=c('Ball', 'Goalie')) +
     ylab("Judgments") + coord_cartesian(ylim=c(0, 1)) +
     theme_classic(base_size = 10, base_family = "Arial") +
-    geom_line(size=1.5) +
-    geom_ribbon(aes(ymin=lower.HPD, ymax=upper.HPD), alpha=0.3) +
-    geom_point(aes(y=rating, color=outcome), show.legend=FALSE, alpha=0.5,
-               data=filter(data.remember, condition=='ball')) +
+    facet_wrap(~ outcome) +
+    geom_col(position=position_dodge(1)) +
+    geom_errorbar(position=position_dodge(1)) +
     scale_fill_discrete(name='Outcome', labels=c('Miss', 'Score')) +
     ggtitle('Reflected on the ball') +
-    theme(plot.title = element_text(hjust=0.5))
-
-plot2.remember <- emmeans.remember %>%
-    as.data.frame %>% subset(condition == 'goalie') %>%
-    ggplot(aes(x=vividness, y=emmean, group=outcome, fill=outcome)) + xlab("Vividness") +
-    ylab("Judgments") + coord_cartesian(ylim=c(0, 1)) +
-    theme_classic(base_size = 10, base_family = "Arial") +
-    geom_line(size=1.5) +
-    geom_ribbon(aes(ymin=lower.HPD, ymax=upper.HPD), alpha=0.3) +
-    geom_point(aes(y=rating, color=outcome), show.legend=FALSE, alpha=0.5,
-               data=filter(data.remember, condition=='goalie')) +
-    scale_fill_discrete(name='Outcome', labels=c('Miss', 'Score')) +
-    ggtitle('Reflected on the goalie') +
-    theme(plot.title = element_text(hjust=0.5))
-
-plot1.remember / plot2.remember + plot_layout(guides='collect')
+    theme(plot.title = element_text(hjust=0.5),
+          strip.text=element_blank())
 ggsave(file="plots/ratings-remember.png")
 
 
 
-model.whatif <- brm(rating ~ condition*outcome*scale(vividness) +
-                          (outcome|id), data=data.whatif,
-                      prior=c(set_prior('normal(0, 1)', class='b')),
+model.whatif <- brm(rating ~ condition*outcome + (outcome|id),
+                    data=data.whatif,
+                    prior=c(set_prior(paste0('normal(0, ',
+                                             sd(data.whatif$rating), ')'),
+                                      class='b')),
                       sample_prior='yes', save_pars=save_pars(all=TRUE),
                     cores=4, file='whatif')
-summary(model.whatif)
+
+summary(model.whatif, prior=TRUE)
 describe_posterior(model.whatif, ci=.95, rope_ci=.95)
 
 ## get BFs
-hypothesis(model.whatif,
-           c('condition1 = 0', 'outcome1 = 0', 'scalevividness = 0',
-             'condition1:outcome1 = 0', 'condition1:scalevividness = 0',
-             'outcome1:scalevividness = 0',
-             'condition1:outcome1:scalevividness = 0'))
+hypothesis(model.whatif, c('condition1 = 0', 'outcome1 = 0',
+                           'condition1:outcome1 = 0'))
 
 
-emmeans.whatif <- emmeans(model.whatif, ~ outcome * condition * vividness,
-                          at=list(vividness=seq(0, 1, length.out=100)))
-emtrends(model.whatif, pairwise ~ outcome | condition, var='vividness')
+emmeans.whatif <- emmeans(model.whatif, ~ outcome * condition)
 
-#there was no sig interactions, so this is the comparison I used - kk
-emmeans(model.whatif, pairwise ~ outcome)
-
-plot1.whatif <- emmeans.whatif %>%
-    as.data.frame %>% subset(condition == 'ball') %>%
-    ggplot(aes(x=vividness, y=emmean, group=outcome, fill=outcome)) + xlab("Vividness") +
+emmeans.whatif %>%
+    as.data.frame %>% 
+    ggplot(aes(x=condition, y=emmean, ymin=lower.HPD, ymax=upper.HPD,
+               fill=outcome)) +
+    scale_x_discrete(name='Focused Object', labels=c('Ball', 'Goalie')) +
     ylab("Judgments") + coord_cartesian(ylim=c(0, 1)) +
     theme_classic(base_size = 10, base_family = "Arial") +
-    geom_line(size=1.5) +
-    geom_ribbon(aes(ymin=lower.HPD, ymax=upper.HPD), alpha=0.3) +
-    geom_point(aes(y=rating, color=outcome), show.legend=FALSE, alpha=0.5,
-               data=filter(data.whatif, condition=='ball')) +
+    facet_wrap(~ outcome) +
+    geom_col(position=position_dodge(1)) +
+    geom_errorbar(position=position_dodge(1)) +
     scale_fill_discrete(name='Outcome', labels=c('Miss', 'Score')) +
     ggtitle('Reflected on the ball') +
-    theme(plot.title = element_text(hjust=0.5))
-
-plot2.whatif <- emmeans.whatif %>%
-    as.data.frame %>% subset(condition == 'goalie') %>%
-    ggplot(aes(x=vividness, y=emmean, group=outcome, fill=outcome)) + xlab("Vividness") +
-    ylab("Judgments") + coord_cartesian(ylim=c(0, 1)) +
-    theme_classic(base_size = 10, base_family = "Arial") +
-    geom_line(size=1.5) +
-    geom_ribbon(aes(ymin=lower.HPD, ymax=upper.HPD), alpha=0.3) +
-    geom_point(aes(y=rating, color=outcome), show.legend=FALSE, alpha=0.5,
-               data=filter(data.whatif, condition=='goalie')) +
-    scale_fill_discrete(name='Outcome', labels=c('Miss', 'Score')) +
-    ggtitle('Reflected on the goalie') +
-    theme(plot.title = element_text(hjust=0.5))
-
-plot1.whatif / plot2.whatif + plot_layout(guides='collect')
+    theme(plot.title = element_text(hjust=0.5),
+          strip.text=element_blank())
 ggsave(file="plots/ratings-whatif.png")
 
 ## Table of models 1 and 2
@@ -192,44 +183,39 @@ Table2 <- sjPlot::tab_model(model.remember, model.whatif,
 Table2
 
 ## Plot results from models 1 and 2
-##(plot1.remember / plot2.remember |
-##    plot1.whatif / plot2.whatif) + plot_layout(guides='collect')
-
 rbind(emmeans.remember %>% as.data.frame %>% mutate(imagination='Remember'),
       emmeans.whatif %>% as.data.frame %>% mutate(imagination='What If?')) %>%
-    ggplot(aes(x=vividness, y=emmean, group=outcome, fill=outcome)) +
-    xlab("Vividness") + ylab("Judgments") + coord_cartesian(ylim=c(0, 1)) +
+    ggplot(aes(x=outcome, y=emmean, ymin=lower.HPD, ymax=upper.HPD,
+               fill=outcome)) +
+    ylab("Judgments") + coord_cartesian(ylim=c(0, 1)) +
     theme_classic(base_size = 10, base_family = "Arial") +
-    geom_line(size=1.5) +
-    geom_ribbon(aes(ymin=lower.HPD, ymax=upper.HPD), alpha=0.3) +
-    geom_point(aes(y=rating, color=outcome), show.legend=FALSE, alpha=0.5,
-               data=rbind(data.remember, data.whatif)) +
-    facet_grid(condition ~ imagination,
+    geom_col(position=position_dodge(1), show.legend=FALSE) +
+    geom_errorbar(position=position_dodge(1)) +
+    facet_grid(imagination ~ condition,
                labeller=labeller(condition=c('ball'='Reflected on the ball',
                                              'goalie'='Reflected on the goalie'),
                                  imagination=c('Remember'='Outcome Assessment',
                                                'What If?'='Counterfactual Thinking'))) +
-    scale_fill_discrete(name='Outcome', labels=c('Miss', 'Score')) +
+    scale_x_discrete(name='Outcome', labels=c('Miss', 'Score')) +
     theme(plot.title=element_text(hjust=0.5),
           strip.text=element_text(size=12),
           strip.background=element_blank())
-
 ggsave(file="plots/ratings-remember-whatif.png")
 
 
 
-data.cause$remember <- fitted(model.remember, newdata=data.cause, re.form=NULL)[,1]
-data.cause$whatif <- fitted(model.whatif, newdata=data.cause, re.form=NULL)[,1]
 
+data.cause$remember <- fitted(model.remember, newdata=data.cause)[,1]
+data.cause$whatif <- fitted(model.whatif, newdata=data.cause)[,1]
 
-
-
-model.cause <- brm(rating ~ condition*scale(remember)*scale(whatif) +
-                       (1|id), data=data.cause,
-                   prior=c(set_prior('normal(0, 1)', class='b')),
+model.cause <- brm(rating ~ condition*scale(remember)*scale(whatif) + (1|id),
+                   data=data.cause,
+                   prior=c(set_prior(paste0('normal(0, ',
+                                            sd(data.cause$rating), ')'), class='b')),
                    sample_prior='yes', save_pars=save_pars(all=TRUE),
-                   cores=4, file='cause')
-summary(model.cause)
+                   cores=4, file='cause_unit_simple2')
+
+summary(model.cause, prior=TRUE)
 describe_posterior(model.cause, ci=.95, rope_ci=.95)
 
 ## get BFs
@@ -287,7 +273,7 @@ plot2.cause <- emmeans.cause %>%
     theme(plot.title = element_text(hjust=0.5))
 
 plot1.cause + plot2.cause + plot_layout(guides='collect')
-ggsave(file="plots/ratings-causal_kk.png", width=6, height=3)
+ggsave(file="plots/ratings-causal.png", width=6, height=3)
 
 #Table of causal selection model
 Table3 <- sjPlot::tab_model(model.cause,
@@ -300,8 +286,4 @@ ggplot(judgments) + aes(x=condition, y=rating, color=outcome) +
     facet_grid(. ~ imagination) + theme_classic() + ylim(0, 1)
 ggsave('plots/ratings.png')
 
-#Modeling Causal Judgements to look at confidence as a predictor
-model.cause <- lmer(rating ~ outcome * condition * vividness + (outcome|id),
-                    data=data.cause)
-summary(model.cause)
 Table4 <- sjPlot::tab_model(model.cause, show.se = F, digits = 2, file = "LAMI_Table4.html")

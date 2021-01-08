@@ -12,25 +12,17 @@
 \begin{multicols}{2}
   \begin{align*}
     y_i &\sim Poisson(\lambda_i) \\
-    ln(\lambda_i) &= a + \boldsymbol{x}_i\boldsymbol{\beta} + f_{c[i],g[i]} +
-    \boldsymbol{z}_i\boldsymbol{\gamma} + \tilde{f}_{c[i],p[i],g[i]} \\
+    ln(\lambda_i) &= a + f_{c[i],g[i]} + \tilde{f}_{c[i],p[i],g[i]} \\
     \\
-    a &\sim Unif(-\infty, \infty) \\
-    \beta_k &\sim StudentT(3, 0, 1) \\
-    \\
-    \boldsymbol{\gamma} &\sim \mathcal{N}(\boldsymbol{0},
-    diag(\boldsymbol{\sigma}) \: \boldsymbol{\Omega} \:
-    diag(\boldsymbol{\sigma})) \\
-    \boldsymbol{\Omega} &\sim LKJ(1) \\
-    \sigma_m &\sim StudentT(3, 0, 2.5) \\
+    a &\sim \mathcal{N}(0, 5) \\
     \\
     \boldsymbol{f}_{c[i]} &\sim GP(\boldsymbol{0}, \boldsymbol{K_{\rho, \alpha}}) \\
-    \rho &\sim InvGamma(10, 500) \\
+    \rho &\sim InvGamma(10, 1000) \\
     \alpha &\sim \mathcal{N}(0, 1) \\
     \\
     \boldsymbol{\tilde{f}}_{c[i],p[i]} &\sim
     GP(\boldsymbol{0}, \boldsymbol{K_{\tilde{\rho}, \tilde{\alpha}}}) \\
-    \tilde{\rho} &\sim InvGamma(20, 600) \\
+    \tilde{\rho} &\sim InvGamma(10, 1000) \\
     \tilde{\alpha} &\sim \mathcal{N}(0, 1) \\
   \end{align*}
   
@@ -41,28 +33,20 @@
     \node[latent, left=of y] (lambda) {$\lambda$};
     \node[latent, left=of lambda, xshift=-0.5cm] (f) {$f$};
     \node[latent, above=of f] (ft) {$\tilde{f}$};
-    \node[latent, above=of ft] (gamma) {$\gamma$};
-    \node[obs, above=of gamma] (z) {$z$};
-    \node[latent, below=of f] (beta) {$\beta$};
-    \node[obs, below=of beta] (x) {$x$};
-    \node[latent, below=of x] (a) {$a$};  
+    \node[latent, below=of f] (a) {$a$};  
     
-    \node[const, left=of ft] (rhot) {$\tilde{\rho}$};
-    \node[const, below=of rhot] (alphat) {$\tilde{\alpha}$};
-    \node[const, left=of f] (rho) {$\rho$};
-    \node[const, below=of rho] (alpha) {$\alpha$};
-    
-    \node[latent, left=of gamma] (omega) {$\Omega$};
-    \node[latent, above=of omega] (sigma) {$\sigma$};
+    \node[const, left=of ft, yshift=.5cm, xshift=-.5cm] (rhot) {$\tilde{\rho}$};
+    \node[const, left=of ft, yshift=-.5cm, xshift=-.5cm] (alphat) {$\tilde{\alpha}$};
+    \node[const, left=of f, yshift=.5cm, xshift=-.5cm] (rho) {$\rho$};
+    \node[const, left=of f, yshift=-.5cm, xshift=-.5cm] (alpha) {$\alpha$};
     
     \edge {rho, alpha} {f};
     \edge {rhot, alphat} {ft};
-    \edge {sigma, omega} {gamma};
-    \edge {a, x, beta, z, gamma, ft, f} {lambda};
+    \edge {a, ft, f} {lambda};
     \edge {lambda} {y};
 
-    \plate {p} {(ft)(gamma)} {$P$};
-    \plate {c} {(f)(ft)(p.south west)(p.south east)} {$C$};
+    \plate[inner sep=.3cm] {p} {(ft)} {$P$};
+    \plate {c} {(f)(ft)(p.north west)(p.north east)} {$C$};
   \end{tikzpicture}
   
 \end{multicols}
