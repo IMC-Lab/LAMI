@@ -8,6 +8,10 @@ library(tidyverse)
 ## in the data frame df.
 grid.rect <- function(df=data.frame(), xmin=-600, xmax=600, xsize=10,
                       ymin=-300, ymax=300, ysize=10) {
+    ## make sure we include the maxima
+    if (xmax %% xsize != 0) xmax <- xmax + xsize
+    if (ymax %% ysize != 0) ymax <- ymax + ysize
+    
     df %>%
         expand(bin_x=seq(xmin, xmax, xsize),
                bin_y=seq(ymin, ymax, ysize)) %>%
@@ -73,7 +77,9 @@ grid.hex <- function(df=data.frame(), xmin=-600, xmax=600, xsize=10,
         grid <- grid %>%
             bind_rows(expand(df, bin_x=xmin-xsize,
                              bin_y=shift_rows) %>%
-                      mutate(grid_idx=row_number()+max(grid$grid_idx)))
+                      mutate(grid_idx=row_number()+max(grid$grid_idx))) %>%
+            arrange(bin_x, bin_y) %>%
+            mutate(grid_idx=row_number())
     }
     
     ## shift every other row and calculate vertices

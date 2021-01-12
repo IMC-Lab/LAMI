@@ -192,10 +192,8 @@ rbind(emmeans.remember %>% as.data.frame %>% mutate(imagination='Remember'),
     geom_col(position=position_dodge(1), show.legend=FALSE) +
     geom_errorbar(position=position_dodge(1)) +
     facet_grid(imagination ~ condition,
-               labeller=labeller(condition=c('ball'='Reflected on the ball',
-                                             'goalie'='Reflected on the goalie'),
-                                 imagination=c('Remember'='Outcome Assessment',
-                                               'What If?'='Counterfactual Thinking'))) +
+               labeller=labeller(condition=c('ball'='Offensive',
+                                             'goalie'='Defensive'))) +
     scale_x_discrete(name='Outcome', labels=c('Miss', 'Score')) +
     theme(plot.title=element_text(hjust=0.5),
           strip.text=element_text(size=12),
@@ -213,7 +211,7 @@ model.cause <- brm(rating ~ condition*scale(remember)*scale(whatif) + (1|id),
                    prior=c(set_prior(paste0('normal(0, ',
                                             sd(data.cause$rating), ')'), class='b')),
                    sample_prior='yes', save_pars=save_pars(all=TRUE),
-                   cores=4, file='cause_unit_simple2')
+                   cores=4, file='cause')
 
 summary(model.cause, prior=TRUE)
 describe_posterior(model.cause, ci=.95, rope_ci=.95)
@@ -251,10 +249,10 @@ plot1.cause <- emmeans.cause %>%
     scale_fill_viridis(option="magma", name='Cause', limits=0:1) +
     scale_x_continuous(expand=c(0,0), limits=c(0, 1.1)) +
     scale_y_continuous(expand=c(0,0), limits=c(0, 1.1)) +
-    xlab('Outcome model estimates') + ylab('Counterfactual estimates') +
+    xlab('Remember model estimates') + ylab('What If? model estimates') +
     theme_classic(base_size = 10, base_family = "Arial") +
     coord_fixed() +
-    ggtitle('Reflected on the ball') +
+    ggtitle('Offensive position') +
     theme(plot.title = element_text(hjust=0.5))
 
 plot2.cause <- emmeans.cause %>%
@@ -266,10 +264,10 @@ plot2.cause <- emmeans.cause %>%
     scale_fill_viridis(option="magma", name='Cause', limits=0:1) +
     scale_x_continuous(expand=c(0,0), limits=c(0, 1.1)) +
     scale_y_continuous(expand=c(0,0), limits=c(0, 1.1)) +
-    xlab('Outcome model estimates') + ylab('Counterfactual estimates') +
+    xlab('Remember model estimates') + ylab('What If? model estimates') +
     theme_classic(base_size = 10, base_family = "Arial") +
     coord_fixed() +
-    ggtitle('Reflected on the goalie') +
+    ggtitle('Defensive position') +
     theme(plot.title = element_text(hjust=0.5))
 
 plot1.cause + plot2.cause + plot_layout(guides='collect')

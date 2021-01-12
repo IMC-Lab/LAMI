@@ -5,13 +5,14 @@ library(tidybayes)
 library(bayestestR)
 library(viridis)
 library(patchwork)
+library(scico)
 options(mc.cores = parallel::detectCores())
-rstan_options(auto_write = TRUE)
 
 source('grid.r')
 
 data.fix <- read.csv('../data/test/KKTest1_BlankFixations_report.csv',
                      header=TRUE) %>%
+    filter(CURRENT_FIX_INDEX > 1) %>%
     mutate(CURRENT_FIX_X = CURRENT_FIX_X - 1920/2,
            CURRENT_FIX_Y = CURRENT_FIX_Y - 1080/2) %>%
     group_by(TRIAL_INDEX) %>%
@@ -52,12 +53,12 @@ ggsave('plots/raw_data_group.png', width=5, height=4)
 ## Bin fixations into hexagons
 data.grid <- data.fix %>%
     grid.hex(xmin=-450, xmax=550, xsize=50,
-             ymin=-200, ymax=300, ysize=50)
+             ymin=-150, ymax=300)
 
 data.hex <- data.fix %>%
     group_by(COND, PAR, TRIAL_INDEX) %>%
     bin.hex(xmin=-450, xmax=550, xsize=50,
-            ymin=-200, ymax=300, ysize=50)
+            ymin=-150, ymax=300)
 
 plot.data.par <- data.hex %>%
     unnest(c(vi, vx, vy)) %>%
@@ -83,6 +84,7 @@ plot.data.group <- data.hex %>%
     facet_grid(COND ~ ., labeller=label_both) +
     theme_classic()
 plot.data.group
+
 ggsave('plots/raw_data_group_hex.png', width=5, height=4)
 
 data.stan <- list(N=nrow(data.hex),
@@ -97,34 +99,44 @@ data.stan <- list(N=nrow(data.hex),
                   y=data.hex$count)
 str(data.stan)
 
-gp.fit <- readRDS('gp-hex.rds')
+## Sample the GP prior
+gp.prior <- readRDS('gp-prior.rds')
+gp.prior <- stan(file='gp-prior.stan', data=data.stan, algorithm='Fixed_param', iter=1000)
+saveRDS(gp.prior, 'gp-prior.rds')
 
+## Fit & sample the model posterior
+gp.fit <- readRDS('gp.rds')
 gp.fit <- stan(file='gp.stan', data=data.stan)
+saveRDS(gp.fit, 'gp.rds')
 
-saveRDS(gp.fit, 'gp-hex.rds')
 
-
+print(gp.prior, prob=c(0.025, 0.5, 0.975), 
+      pars=c('prior_a', 'prior_rho', 'prior_rho_tilde',
+             'prior_alpha', 'prior_alpha_tilde'))
 print(gp.fit, prob=c(0.025, 0.5, 0.975), 
-      pars=c('a', 'rho', 'rho_tilde', 'alpha', 'alpha_tilde',
-             'prior_a', 'prior_rho', 'prior_rho_tilde',
-             'prior_alpha', 'prior_alpha_tilde', 'lp__'))
+      pars=c('a', 'rho', 'rho_tilde', 'alpha', 'alpha_tilde', 'lp__'))
 
-plot(gp.fit, pars=c('prior_rho', 'rho', 'prior_rho_tilde', 'rho_tilde'))
-plot(gp.fit, pars=c('prior_alpha', 'alpha', 'prior_alpha_tilde', 'alpha_tilde'))
-
+plot(gp.prior, pars=c('prior_rho', 'prior_rho_tilde'))
+plot(gp.prior, pars=c('prior_alpha', 'prior_alpha_tilde'))
+plot(gp.fit, pars=c('rho', 'rho_tilde'))
+plot(gp.fit, pars=c('alpha', 'alpha_tilde'))
 
 
 ## extract model fits for each trial
-draws.trial <- spread_draws(gp.fit, lambda[.row], yhat[.row],
-                            prior_lambda[.row]) %>%
+prior.trial <- spread_draws(gp.prior, prior_lambda[.row]) %>%
+    bind_cols(., data.hex[.$.row, c('PAR', 'COND', 'grid_idx', 'TRIAL_INDEX',
+                                    'bin_x', 'bin_y', 'vi', 'vx', 'vy', 'count')])
+draws.trial <- spread_draws(gp.fit, lambda[.row], yhat[.row]) %>%
     bind_cols(., data.hex[.$.row, c('PAR', 'COND', 'grid_idx', 'TRIAL_INDEX',
                                     'bin_x', 'bin_y', 'vi', 'vx', 'vy', 'count')])
 
 ## extract group-level model fits for each condition
-draws.group <- spread_draws(gp.fit, a, f[COND, grid_idx], prior_a,
-                            prior_f[COND, grid_idx]) %>%
-    mutate(lambda=a+f,
-           prior_lambda=prior_a+prior_f) %>%
+prior.group <- spread_draws(gp.prior, prior_a, prior_f[COND, grid_idx]) %>%
+    mutate(prior_lambda=prior_a+prior_f) %>%
+    bind_cols(., data.grid[.$grid_idx, c('bin_x', 'bin_y', 'vi', 'vx', 'vy')])
+
+draws.group <- spread_draws(gp.fit, a, f[COND, grid_idx]) %>%
+    mutate(lambda=a+f) %>%
     bind_cols(., data.grid[.$grid_idx, c('bin_x', 'bin_y', 'vi', 'vx', 'vy')])
 
 
@@ -154,7 +166,7 @@ plot.prior.par <- draws.trial %>%
     scale_fill_viridis(option='magma', name='Rate', limits=c(0, NA)) +
     scale_color_viridis(option='magma', name='Rate', limits=c(0, NA)) +
     theme_classic() + coord_fixed()
-
+    
 
 
 plot.pred.group <- draws.group %>%
@@ -184,7 +196,24 @@ plot.prior.group <- draws.group %>%
     theme_classic() + coord_fixed()
 
 
-
+bf.breaks <- seq(-6, 6, 2)
+draws.group %>%
+    group_by(COND, grid_idx, vx, vy) %>%
+    median_hdci(BF) %>%
+    unnest(c(vx, vy)) %>%
+    ##filter(BF < .1 | BF > 10) %>%
+    ggplot() + ggtitle('GP Fit (group)') + 
+    aes(x=vx, y=vy, group=grid_idx) + xlab('X') + ylab('Y') +
+    facet_grid(COND ~ ., labeller=label_both) +
+    geom_polygon(aes(fill=log10(BF), color=log10(BF)), size=0.3) +
+    scale_fill_scico(palette='vik', direction=-1,
+                     limits=range(bf.breaks), breaks=bf.breaks,
+                     labels=10^bf.breaks, name='BF_null') +
+    scale_color_scico(palette='vik', direction=-1,
+                      limits=range(bf.breaks), breaks=bf.breaks,
+                      labels=10^bf.breaks, name='BF_null') +
+    theme_classic() + coord_fixed()
+ggsave('plots/gp_group_fit_bf_hex.png', width=5, height=4)
 
 
 ## Group-level contrasts
