@@ -84,7 +84,6 @@ plot.data.group <- data.hex %>%
     facet_grid(COND ~ ., labeller=label_both) +
     theme_classic()
 plot.data.group
-
 ggsave('plots/raw_data_group_hex.png', width=5, height=4)
 
 data.stan <- list(N=nrow(data.hex),
@@ -101,7 +100,7 @@ str(data.stan)
 
 ## Sample the GP prior
 gp.prior <- readRDS('gp-prior.rds')
-gp.prior <- stan(file='gp-prior.stan', data=data.stan, algorithm='Fixed_param', iter=1000)
+gp.prior <- stan(file='gp-prior.stan', data=data.stan, algorithm='Fixed_param', iter=1000, warmup=0)
 saveRDS(gp.prior, 'gp-prior.rds')
 
 ## Fit & sample the model posterior
@@ -123,86 +122,83 @@ plot(gp.fit, pars=c('alpha', 'alpha_tilde'))
 
 
 ## extract model fits for each trial
-prior.trial <- spread_draws(gp.prior, prior_lambda[.row]) %>%
-    bind_cols(., data.hex[.$.row, c('PAR', 'COND', 'grid_idx', 'TRIAL_INDEX',
-                                    'bin_x', 'bin_y', 'vi', 'vx', 'vy', 'count')])
-draws.trial <- spread_draws(gp.fit, lambda[.row], yhat[.row]) %>%
+draws.trial <- full_join(spread_draws(gp.prior, prior_lambda[.row]),
+                         spread_draws(gp.fit, lambda[.row])) %>%
     bind_cols(., data.hex[.$.row, c('PAR', 'COND', 'grid_idx', 'TRIAL_INDEX',
                                     'bin_x', 'bin_y', 'vi', 'vx', 'vy', 'count')])
 
 ## extract group-level model fits for each condition
-prior.group <- spread_draws(gp.prior, prior_a, prior_f[COND, grid_idx]) %>%
-    mutate(prior_lambda=prior_a+prior_f) %>%
+draws.group <- full_join(spread_draws(gp.prior, prior_a, prior_f[COND, grid_idx]),
+                         spread_draws(gp.fit, a, f[COND, grid_idx])) %>%
+    mutate(prior_lambda=prior_a+prior_f,
+           lambda=a+f,
+           BF=1/bayesfactor_pointull(f, prior_f)$BF) %>%
+    mutate(BF=max(1/max(.draw), min(1-1/max(.draw), BF))) %>%   ## round BFs to make logs finite
     bind_cols(., data.grid[.$grid_idx, c('bin_x', 'bin_y', 'vi', 'vx', 'vy')])
 
-draws.group <- spread_draws(gp.fit, a, f[COND, grid_idx]) %>%
-    mutate(lambda=a+f) %>%
-    bind_cols(., data.grid[.$grid_idx, c('bin_x', 'bin_y', 'vi', 'vx', 'vy')])
 
 
-
-plot.pred.par <- draws.trial %>%
+draws.trial %>%
     group_by(PAR, COND, grid_idx, vx, vy) %>%
     median_hdci(lambda) %>%
     unnest(c(vx, vy)) %>%
-    ggplot() + ggtitle('GP Fit (by participant)') + 
+    ggplot() + ggtitle('GP Fit (participant-level)') + 
     aes(x=vx, y=vy, group=grid_idx) + xlab('X') + ylab('Y') +
     geom_polygon(aes(fill=exp(lambda), color=exp(lambda)), size=0.3) +
     facet_grid(COND ~ PAR, labeller=label_both) +
     scale_fill_viridis(option='magma', name='Rate', limits=c(0, NA)) +
     scale_color_viridis(option='magma', name='Rate', limits=c(0, NA)) +
     theme_classic() + coord_fixed()
-plot.pred.par
-ggsave('plots/gp_fit_hex.png', width=5, height=4)
+ggsave('plots/gp_fit_par.png', width=5, height=4)
 
-plot.prior.par <- draws.trial %>%
+draws.trial %>%
     group_by(PAR, COND, grid_idx, vx, vy) %>%
     median_hdci(prior_lambda) %>%
     unnest(c(vx, vy)) %>%
-    ggplot() + ggtitle('GP Fit (by participant)') + 
+    ggplot() + ggtitle('GP Prior (participant-level)') + 
     aes(x=vx, y=vy, group=grid_idx) + xlab('X') + ylab('Y') +
     geom_polygon(aes(fill=exp(prior_lambda), color=exp(prior_lambda)), size=0.3) +
     facet_grid(COND ~ PAR, labeller=label_both) +
     scale_fill_viridis(option='magma', name='Rate', limits=c(0, NA)) +
     scale_color_viridis(option='magma', name='Rate', limits=c(0, NA)) +
     theme_classic() + coord_fixed()
-    
+ggsave('plots/gp_fit_par_prior.png', width=5, height=4)
 
 
-plot.pred.group <- draws.group %>%
-    group_by(COND, grid_idx, vx, vy) %>%
-    median_hdci(lambda) %>%
-    unnest(c(vx, vy)) %>%
-    ggplot() + ggtitle('GP Fit (group)') + 
-    aes(x=vx, y=vy, group=grid_idx) + xlab('X') + ylab('Y') +
-    facet_grid(COND ~ ., labeller=label_both) +
-    geom_polygon(aes(fill=exp(lambda), color=exp(lambda)), size=0.3) +
-    scale_fill_viridis(option='magma', name='Rate', limits=c(0, NA)) +
-    scale_color_viridis(option='magma', name='Rate', limits=c(0, NA)) +
-    theme_classic() + coord_fixed()
-plot.pred.group
-ggsave('plots/gp_group_fit_hex.png', width=5, height=4)
-
-plot.prior.group <- draws.group %>%
-    group_by(COND, grid_idx, vx, vy) %>%
-    median_hdci(prior_lambda) %>%
-    unnest(c(vx, vy)) %>%
-    ggplot() + ggtitle('GP Fit (group)') + 
-    aes(x=vx, y=vy, group=grid_idx) + xlab('X') + ylab('Y') +
-    facet_grid(COND ~ ., labeller=label_both) +
-    geom_polygon(aes(fill=exp(prior_lambda), color=exp(prior_lambda)), size=0.3) +
-    scale_fill_viridis(option='magma', name='Rate', limits=c(0, NA)) +
-    scale_color_viridis(option='magma', name='Rate', limits=c(0, NA)) +
-    theme_classic() + coord_fixed()
-
-
-bf.breaks <- seq(-6, 6, 2)
 draws.group %>%
     group_by(COND, grid_idx, vx, vy) %>%
-    median_hdci(BF) %>%
+    median_hdci(lambda) %>%
     unnest(c(vx, vy)) %>%
-    ##filter(BF < .1 | BF > 10) %>%
-    ggplot() + ggtitle('GP Fit (group)') + 
+    ggplot() + ggtitle('GP Fit') + 
+    aes(x=vx, y=vy, group=grid_idx) + xlab('X') + ylab('Y') +
+    facet_grid(COND ~ ., labeller=label_both) +
+    geom_polygon(aes(fill=exp(lambda), color=exp(lambda)), size=0.3) +
+    scale_fill_viridis(option='magma', name='Rate', limits=c(0, NA)) +
+    scale_color_viridis(option='magma', name='Rate', limits=c(0, NA)) +
+    theme_classic() + coord_fixed()
+ggsave('plots/gp_fit.png', width=5, height=4)
+
+draws.group %>%
+    group_by(COND, grid_idx, vx, vy) %>%
+    median_hdci(prior_lambda) %>%
+    unnest(c(vx, vy)) %>%
+    ggplot() + ggtitle('GP Prior') + 
+    aes(x=vx, y=vy, group=grid_idx) + xlab('X') + ylab('Y') +
+    facet_grid(COND ~ ., labeller=label_both) +
+    geom_polygon(aes(fill=exp(prior_lambda), color=exp(prior_lambda)), size=0.3) +
+    scale_fill_viridis(option='magma', name='Rate', limits=c(0, NA)) +
+    scale_color_viridis(option='magma', name='Rate', limits=c(0, NA)) +
+    theme_classic() + coord_fixed()
+ggsave('plots/gp_fit_prior.png', width=5, height=4)
+
+
+draws.group$BF %>% log10 %>% summary
+bf.breaks <- seq(-4, 4, 1)
+draws.group %>%
+    group_by(COND, grid_idx, vx, vy) %>%
+    median_hdci(f, BF) %>%
+    unnest(c(vx, vy)) %>%
+    ggplot() + ggtitle('GP Bayes Factors') + 
     aes(x=vx, y=vy, group=grid_idx) + xlab('X') + ylab('Y') +
     facet_grid(COND ~ ., labeller=label_both) +
     geom_polygon(aes(fill=log10(BF), color=log10(BF)), size=0.3) +
@@ -213,7 +209,41 @@ draws.group %>%
                       limits=range(bf.breaks), breaks=bf.breaks,
                       labels=10^bf.breaks, name='BF_null') +
     theme_classic() + coord_fixed()
-ggsave('plots/gp_group_fit_bf_hex.png', width=5, height=4)
+ggsave('plots/gp_fit_bf.png', width=5, height=4)
+
+draws.group %>%
+    group_by(COND, grid_idx, vx, vy) %>%
+    median_hdci(f, BF) %>%
+    unnest(c(vx, vy)) %>%
+    filter((BF < .1 | BF > 10) & (f.lower > 0 | f.upper < 0)) %>%
+    ggplot() + ggtitle('GP Bayes Factors (significant pixels)') + 
+    aes(x=vx, y=vy, group=grid_idx) + xlab('X') + ylab('Y') +
+    facet_grid(COND ~ ., labeller=label_both) +
+    geom_polygon(aes(fill=log10(BF), color=log10(BF)), size=0.3) +
+    scale_fill_scico(palette='vik', direction=-1,
+                     limits=range(bf.breaks), breaks=bf.breaks,
+                     labels=10^bf.breaks, name='BF_null') +
+    scale_color_scico(palette='vik', direction=-1,
+                      limits=range(bf.breaks), breaks=bf.breaks,
+                      labels=10^bf.breaks, name='BF_null') +
+    theme_classic() +
+    coord_fixed(xlim=range(draws.group$vx), ylim=range(draws.group$vy))
+ggsave('plots/gp_fit_bf_sig.png', width=5, height=4)
+
+draws.group %>%
+    group_by(COND, grid_idx, vx, vy) %>%
+    median_hdci(f, lambda) %>%
+    filter(f.lower > 0 | f.upper < 0) %>%
+    unnest(c(vx, vy)) %>%
+    ggplot() + ggtitle('GP Fit (significant pixels)') + 
+    aes(x=vx, y=vy, group=grid_idx) + xlab('X') + ylab('Y') +
+    facet_grid(COND ~ ., labeller=label_both) +
+    geom_polygon(aes(fill=exp(lambda), color=exp(lambda)), size=0.3) +
+    scale_fill_viridis(option='magma', name='Rate', limits=c(0, NA)) +
+    scale_color_viridis(option='magma', name='Rate', limits=c(0, NA)) +
+    theme_classic() +
+    coord_fixed(xlim=range(draws.group$vx), ylim=range(draws.group$vy))
+ggsave('plots/gp_fit_sig.png', width=5, height=4)
 
 
 ## Group-level contrasts
@@ -224,7 +254,8 @@ contr.group <- draws.group %>%
               group_by(COND, grid_idx, bin_x, bin_y, vx, vy) %>%
               compare_levels(prior_lambda, by=COND, comparison='control')) %>%
     group_by(COND, grid_idx, bin_x, bin_y, vx, vy) %>%
-    mutate(BF=1/bayesfactor_pointull(lambda, prior_lambda)$BF)
+    mutate(BF=1/bayesfactor_pointull(lambda, prior_lambda)$BF) %>%
+    mutate(BF=max(1/max(.draw), min(1-1/max(.draw), BF)))   ## round BFs to make logs finite
 
 
 # get ranges of contrasts and BFs
@@ -239,10 +270,10 @@ contr.group %>%
     facet_grid(COND ~ .) +
     ggtitle('Group-level Fixation Rate Contrasts') +
     geom_polygon(size=0.3) + xlab('X') + ylab('Y') +
-    scale_fill_scico(palette='vik', limits=c(-6, 6), name='Rate') +
-    scale_color_scico(palette='vik', limits=c(-6, 6), name='Rate') +
+    scale_fill_scico(palette='vik', limits=c(-6.1, 6.1), name='Rate') +
+    scale_color_scico(palette='vik', limits=c(-6.1, 6.1), name='Rate') +
     theme_classic() + coord_fixed()
-ggsave('plots/gp_contrast_hex.png', width=5, height=4)
+ggsave('plots/gp_contrast.png', width=5, height=4)
 
 contr.group %>%
     median_hdci() %>%
@@ -254,39 +285,51 @@ contr.group %>%
     scale_fill_scico(palette='vik', limits=c(-.05, .05), name='Rate') +
     scale_color_scico(palette='vik', limits=c(-.05, .05), name='Rate') +
     theme_classic() + coord_fixed()
-ggsave('plots/gp_contrast_prior_hex.png', width=5, height=4)
+ggsave('plots/gp_contrast_prior.png', width=5, height=4)
 
 contr.group %>% median_hdci() %>%
-    mutate(BF=ifelse(BF==0, 1/4000,
-              ifelse(BF==1, 4000, BF))) %>%
     unnest(c(vx, vy)) %>%
-    ##filter(BF < .1 & (lambda.lower > 0 | lambda.upper < 0)) %>%
     ggplot(aes(x=vx, y=vy, group=grid_idx, fill=log10(BF), color=log10(BF))) +
     facet_grid(COND ~ .) + xlab('X') + ylab('Y') +
     ggtitle('Group-level Fixation Rate Contrast BFs') +
     geom_polygon(size=0.3) +
     scale_fill_scico(palette='vik', direction=-1,
-                     limits=c(-3, 3), breaks=-3:3,
-                     labels=10^seq(-3, 3, 1),
-                     name='BF_null') +
+                     limits=range(bf.breaks), breaks=bf.breaks,
+                     labels=10^bf.breaks, name='BF_null') +
     scale_color_scico(palette='vik', direction=-1,
-                      limits=c(-3, 3), breaks=-3:3,
-                      labels=10^seq(-3, 3, 1),
-                      name='BF_null') +
+                     limits=range(bf.breaks), breaks=bf.breaks,
+                     labels=10^bf.breaks, name='BF_null') +
     theme_classic() + coord_fixed()
-ggsave('plots/gp_contrast_bf_hex.png', width=5, height=4)
+ggsave('plots/gp_contrast_bf.png', width=5, height=4)
+
+contr.group %>% median_hdci() %>%
+    filter((BF < .1 | BF > 10) & (lambda.upper < 0 | lambda.lower > 0)) %>%
+    unnest(c(vx, vy)) %>%
+    ggplot(aes(x=vx, y=vy, group=grid_idx, fill=log10(BF), color=log10(BF))) +
+    facet_grid(COND ~ .) + xlab('X') + ylab('Y') +
+    ggtitle('Group-level Fixation Rate Contrast BFs (significant pixels)') +
+    geom_polygon(size=0.3) +
+    scale_fill_scico(palette='vik', direction=-1,
+                     limits=range(bf.breaks), breaks=bf.breaks,
+                     labels=10^bf.breaks, name='BF_null') +
+    scale_color_scico(palette='vik', direction=-1,
+                     limits=range(bf.breaks), breaks=bf.breaks,
+                     labels=10^bf.breaks, name='BF_null') +
+    theme_classic() +
+    coord_fixed(xlim=range(contr.group$vx), ylim=range(contr.group$vy))
+ggsave('plots/gp_contrast_bf_sig.png', width=5, height=4)
 
 
 contr.group %>%
     median_hdci() %>%
-    filter((BF < .1 | BF > 10)) %>%
+    filter((BF < .1 | BF > 10) & (lambda.upper < 0 | lambda.lower > 0)) %>%
     unnest(c(vx, vy)) %>%
     ggplot(aes(x=vx, y=vy, group=grid_idx, fill=lambda, color=lambda)) +
     facet_grid(COND ~ .) + xlab('X') + ylab('Y') +
+    ggtitle('Group-level Fixation Rate Contrasts (significant pixels)') +
     geom_polygon(size=0.3) +
-    scale_fill_scico(palette='vik', limits=c(-6, 6)) +
-    scale_color_scico(palette='vik', limits=c(-6, 6)) +
+    scale_fill_scico(palette='vik', limits=c(-6.1, 6.1)) +
+    scale_color_scico(palette='vik', limits=c(-6.1, 6.1)) +
     theme_classic() +
     coord_fixed(xlim=range(contr.group$vx), ylim=range(contr.group$vy))
-
-ggsave('plots/gp_group_contrast_sig_hex.png', width=5, height=4)
+ggsave('plots/gp_contrast_sig.png', width=5, height=4)
