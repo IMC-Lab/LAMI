@@ -33,8 +33,8 @@ bin.rect <- function(df, xmin=-600, xmax=600, xsize=10,
     
     ## bin df according to the grid
     df %>%
-        mutate(bin_x=x_bins[findInterval(CURRENT_FIX_X, x_breaks) + 1],
-               bin_y=y_bins[findInterval(CURRENT_FIX_Y, y_breaks) + 1]) %>%
+        mutate(bin_x=x_bins[findInterval(fix_x, x_breaks) + 1],
+               bin_y=y_bins[findInterval(fix_y, y_breaks) + 1]) %>%
         group_by(bin_x, bin_y, .add=TRUE) %>%
         summarize(count=n()) %>%
         right_join(grid) %>%
@@ -101,7 +101,7 @@ bin.hex <- function(df, ...) {
     
     df %>%
         rowwise() %>%
-        mutate(grid_idx=g$grid_idx[which.min(dist_sq(CURRENT_FIX_X, CURRENT_FIX_Y,
+        mutate(grid_idx=g$grid_idx[which.min(dist_sq(fix_x, fix_y,
                                                      g$bin_x, g$bin_y))]) %>%
         group_by(grid_idx, .add=TRUE) %>%
         summarize(count=n()) %>%
