@@ -96,9 +96,9 @@ model {
   }
 
   // Hyperparameters
-  rho ~ inv_gamma(10, 1000);
+  rho ~ inv_gamma(5, 500);
   alpha ~ std_normal();
-  rho_tilde ~ inv_gamma(10, 1000);
+  rho_tilde ~ inv_gamma(5, 500);
   alpha_tilde ~ std_normal();
 
   {
@@ -109,15 +109,4 @@ model {
 
     y ~ poisson_log(lambda);
   }
-}
-
-generated quantities {
-  vector[N] lambda;
-  int yhat[N];
-  
-  // trial-level predictions
-  for (i in 1:N) {
-    lambda[i] = a + f[c[i], g[i]] + f_tilde[c[i], p[i], g[i]];
-  }
-  yhat = poisson_log_rng(lambda);
 }

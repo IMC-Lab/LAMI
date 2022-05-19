@@ -55,17 +55,17 @@ transformed data {
 model {}
 
 generated quantities {
-  vector[N] prior_lambda;
+  //vector[N] prior_lambda;
   vector[G] prior_f[C];
   vector[G] prior_f_tilde[C, P];
   
   // sample from priors
   real prior_a = normal_rng(0, 5);
-  vector<lower=0>[D] prior_rho = [inv_gamma_rng(10, 1000),
-				  inv_gamma_rng(10, 1000)]';
+  vector<lower=0>[D] prior_rho = [inv_gamma_rng(5, 500),
+				  inv_gamma_rng(5, 500)]';
   real prior_alpha = normal_rng(0, 1);
-  vector<lower=0>[D] prior_rho_tilde = [inv_gamma_rng(10, 1000),
-					inv_gamma_rng(10, 1000)]';
+  vector<lower=0>[D] prior_rho_tilde = [inv_gamma_rng(5, 500),
+					inv_gamma_rng(5, 500)]';
   real prior_alpha_tilde = normal_rng(0, 1);
   {
     // pre-compute GP covariance matrices
@@ -86,7 +86,7 @@ generated quantities {
   }
 
   // trial-level predictions
-  for (i in 1:N) {
-    prior_lambda[i] = prior_a + prior_f[c[i], g[i]] + prior_f_tilde[c[i], p[i], g[i]];
-  }
+  //for (i in 1:N) {
+  //  prior_lambda[i] = prior_a + prior_f[c[i], g[i]] + prior_f_tilde[c[i], p[i], g[i]];
+  //}
 }
